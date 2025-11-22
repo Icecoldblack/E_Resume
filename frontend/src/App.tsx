@@ -1,8 +1,8 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar'
-import HomePage from './pages/HomePage'
-import DashboardPage from './pages/DashboardPage'
+import HomePage from './pages/HomePage';
+import DashboardPage from './pages/DashboardPage';
 import AutoApplyPage from './pages/AutoApplyPage';
 
 const App: React.FC = () => {
