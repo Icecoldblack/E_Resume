@@ -1,16 +1,47 @@
-import React from 'react'
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import './DashboardPage.css';
 
 const DashboardPage: React.FC = () => {
-  return (
-    <section className="page">
-      <h2>Dashboard</h2>
-      <p>This is where you can later show recent applications and resume versions.</p>
-      <ul className="simple-list">
-        <li>Sample Application 1</li>
-        <li>Sample Application 2</li>
-      </ul>
-    </section>
-  )
-}
+  const { logout } = useAuth();
+  const navigate = useNavigate();
 
-export default DashboardPage
+  const handleSignOut = () => {
+    logout();
+    navigate('/');
+  };
+
+  return (
+    <div className="dashboard-page">
+      <section className="dashboard-grid">
+        <article className="dashboard-card">
+          <h3>Weekly Applications</h3>
+          <p>12 jobs submitted</p>
+        </article>
+        <article className="dashboard-card">
+          <h3>Interviews Scheduled</h3>
+          <p>3 upcoming next week</p>
+        </article>
+        <article className="dashboard-card">
+          <h3>AI Credits</h3>
+          <p>62 remaining</p>
+        </article>
+      </section>
+
+      <section className="dashboard-settings" id="settings">
+        <header>
+          <h3>Settings</h3>
+          <p>Manage your EasePath account and authentication.</p>
+        </header>
+        <div className="settings-actions">
+          <button type="button" onClick={handleSignOut}>
+            Sign out and return to login
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+export default DashboardPage;

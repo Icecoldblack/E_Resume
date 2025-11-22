@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import './AutoApplyPage.css';
 
 const AutoApplyPage: React.FC = () => {
   const [jobTitle, setJobTitle] = useState('Software Engineering Intern');
@@ -36,9 +37,10 @@ const AutoApplyPage: React.FC = () => {
   };
 
   return (
-    <section className="page">
-      <h2>Auto Job Applicator</h2>
-      <form className="simple-form" onSubmit={handleSubmit}>
+    <div className="auto-apply-page">
+      <section className="auto-apply-card">
+        <h2>Auto Job Applicator</h2>
+        <form className="auto-apply-form" onSubmit={handleSubmit}>
         <label>
           Job Title / Keywords
           <input
@@ -75,8 +77,9 @@ const AutoApplyPage: React.FC = () => {
           />
         </label>
         <button type="submit">Start Applying</button>
-      </form>
-    </section>
+        </form>
+      </section>
+    </div>
   );
 };
 

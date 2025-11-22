@@ -6,12 +6,9 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background: #100E17;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0b0913;
   color: #fff;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   min-height: 100vh;
 }
 
@@ -91,16 +88,16 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  width: 100%;
+  background: #0b0913;
 }
 
 .app-main {
-  flex-grow: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 1.5rem;
+  flex: 1;
   width: 100%;
+}
+
+.app-main[data-authenticated="true"] {
+  padding: 2rem;
 }
 
 /* Navbar */

@@ -1,0 +1,69 @@
+.dashboard-page {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+}
+
+.dashboard-card {
+  background: #1c1730;
+  border-radius: 18px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(8, 5, 20, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dashboard-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.dashboard-card p {
+  margin: 0;
+  color: #bfb8de;
+}
+
+.dashboard-settings {
+  background: #18122a;
+  border-radius: 20px;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dashboard-settings header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.dashboard-settings header p {
+  margin: 0.35rem 0 1.5rem;
+  color: #aca6c5;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.settings-actions button {
+  background: #ff6b6b;
+  border: none;
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.settings-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 25px rgba(255, 107, 107, 0.35);
+}
