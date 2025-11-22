@@ -1,6 +1,6 @@
-package com.eresume.backend.service;
+package com.easepath.backend.service;
 
-import com.eresume.backend.dto.UserDto;
+import com.easepath.backend.dto.UserDto;
 
 public interface UserService {
 

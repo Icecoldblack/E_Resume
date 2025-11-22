@@ -1,4 +1,4 @@
-package com.eresume.backend.controller;
+package com.easepath.backend.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +12,6 @@ public class HealthController {
 
     @GetMapping("/api/health")
     public ResponseEntity<String> health() {
-        return ResponseEntity.ok("E-Resume backend is running");
+        return ResponseEntity.ok("EasePath backend is running");
     }
 }

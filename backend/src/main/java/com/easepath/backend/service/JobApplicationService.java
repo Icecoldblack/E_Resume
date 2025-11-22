@@ -1,4 +1,4 @@
-package com.eresume.backend.service;
+package com.easepath.backend.service;
 
 import org.springframework.stereotype.Service;
 

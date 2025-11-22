@@ -3,11 +3,11 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.eresume</groupId>
-    <artifactId>e-resume-backend</artifactId>
+    <groupId>com.easepath</groupId>
+    <artifactId>easepath-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>e-resume-backend</name>
-    <description>E-Resume Spring Boot backend</description>
+    <name>easepath-backend</name>
+    <description>EasePath Spring Boot backend</description>
     <packaging>jar</packaging>
 
     <properties>

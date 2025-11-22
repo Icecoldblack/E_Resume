@@ -1,8 +1,9 @@
-package com.eresume.backend.service.impl;
+package com.easepath.backend.service.impl;
 
-import com.eresume.backend.dto.UserDto;
-import com.eresume.backend.service.UserService;
 import org.springframework.stereotype.Service;
+
+import com.easepath.backend.dto.UserDto;
+import com.easepath.backend.service.UserService;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -16,6 +17,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserDto getSampleUser() {
-        return new UserDto(1L, "Sample User", "sample@eresume.app");
+        return new UserDto(1L, "Sample User", "sample@easepath.app");
     }
 }

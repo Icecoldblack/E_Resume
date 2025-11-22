@@ -1,9 +1,9 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar'
-import HomePage from './pages/HomePage';
-import DashboardPage from './pages/DashboardPage';
-import AutoApplyPage from './pages/AutoApplyPage';
+import HomePage from './pages/HomePage/HomePage';
+import DashboardPage from './pages/DashboardPage/DashboardPage';
+import AutoApplyPage from './pages/AutoApplyPage/AutoApplyPage';
 
 const App: React.FC = () => {
   return (

@@ -5,7 +5,7 @@ const HomePage: React.FC = () => {
     <div className="login-page">
       <div className="login-card">
         <div className="login-logo">
-          <span className="logo-icon"></span> E-Apply
+          <span className="logo-icon"></span> EasePath
         </div>
         <h2>Welcome</h2>
         <p>Use your Google account to continue.</p>

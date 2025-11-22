@@ -1,4 +1,4 @@
-package com.eresume.backend.service.impl;
+package com.easepath.backend.service.impl;
 
 import java.io.IOException;
 
@@ -11,7 +11,7 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
-import com.eresume.backend.service.JobApplicationService;
+import com.easepath.backend.service.JobApplicationService;
 
 @Service
 public class JobApplicationServiceImpl implements JobApplicationService {

@@ -1,8 +1,9 @@
-package com.eresume.backend.service.impl;
+package com.easepath.backend.service.impl;
 
-import com.eresume.backend.dto.ResumeDto;
-import com.eresume.backend.service.ResumeService;
 import org.springframework.stereotype.Service;
+
+import com.easepath.backend.dto.ResumeDto;
+import com.easepath.backend.service.ResumeService;
 
 @Service
 public class ResumeServiceImpl implements ResumeService {
@@ -19,7 +20,7 @@ public class ResumeServiceImpl implements ResumeService {
         return new ResumeDto(
                 1L,
                 "Software Engineer Resume",
-                "This is a sample resume summary for the E-Resume project."
+                "This is a sample resume summary for the EasePath project."
         );
     }
 }

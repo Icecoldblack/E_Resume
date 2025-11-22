@@ -1,6 +1,6 @@
-package com.eresume.backend.service;
+package com.easepath.backend.service;
 
-import com.eresume.backend.dto.ResumeDto;
+import com.easepath.backend.dto.ResumeDto;
 
 public interface ResumeService {
 

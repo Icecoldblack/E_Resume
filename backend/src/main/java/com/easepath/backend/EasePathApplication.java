@@ -1,12 +1,12 @@
-package com.eresume.backend;
+package com.easepath.backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class EResumeApplication {
+public class EasePathApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(EResumeApplication.class, args);
+        SpringApplication.run(EasePathApplication.class, args);
     }
 }
