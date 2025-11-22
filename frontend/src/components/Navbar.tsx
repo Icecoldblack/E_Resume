@@ -1,30 +1,24 @@
-import React from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import React from 'react';
+import { Link, NavLink } from 'react-router-dom';
 
 const Navbar: React.FC = () => {
   return (
     <header className="navbar">
       <div className="navbar-left">
         <Link to="/" className="navbar-logo">
-          E-Resume
+          E-Apply
         </Link>
       </div>
       <nav className="navbar-nav">
-        <NavLink to="/" className={({ isActive }) => isActive ? 'nav-link nav-link-active' : 'nav-link'}>
-          Home
-        </NavLink>
-        <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link nav-link-active' : 'nav-link'}>
+        <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'nav-link nav-link-active' : 'nav-link')}>
           Dashboard
         </NavLink>
-        <NavLink to="/resume-builder" className={({ isActive }) => isActive ? 'nav-link nav-link-active' : 'nav-link'}>
-          Resume Builder
-        </NavLink>
-        <NavLink to="/login" className={({ isActive }) => isActive ? 'nav-link nav-link-active' : 'nav-link'}>
-          Login
+        <NavLink to="/auto-apply" className={({ isActive }) => (isActive ? 'nav-link nav-link-active' : 'nav-link')}>
+          Auto Apply
         </NavLink>
       </nav>
     </header>
-  )
-}
+  );
+};
 
-export default Navbar
+export default Navbar;

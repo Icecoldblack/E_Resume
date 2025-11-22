@@ -2,9 +2,8 @@ import React from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import HomePage from './pages/HomePage'
-import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
-import ResumeBuilderPage from './pages/ResumeBuilderPage'
+import AutoApplyPage from './pages/AutoApplyPage';
 
 const App: React.FC = () => {
   return (
@@ -13,13 +12,12 @@ const App: React.FC = () => {
       <main className="app-main">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/resume-builder" element={<ResumeBuilderPage />} />
+          <Route path="/auto-apply" element={<AutoApplyPage />} />
         </Routes>
       </main>
     </div>
-  )
-}
+  );
+};
 
 export default App

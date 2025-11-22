@@ -1,16 +1,15 @@
-import React from 'react'
-import ResumePreview from '../components/ResumePreview'
+import React from 'react';
 
 const HomePage: React.FC = () => {
   return (
-    <section className="page page-home">
-      <div className="page-header">
-        <h1>E-Resume</h1>
-        <p>Create, edit, and track resumes tailored to each job you apply for.</p>
+    <div className="home-page-simple">
+      <div className="content-simple">
+        <h1>E-Apply</h1>
+        <p className="subtitle-simple">Your AI-powered job application assistant.</p>
+        <button className="google-signin-btn-large">Sign in with Google</button>
       </div>
-      <ResumePreview />
-    </section>
-  )
-}
+    </div>
+  );
+};
 
-export default HomePage
+export default HomePage;
