@@ -1,6 +1,6 @@
 # EasePath Job Application Assistant
 
-EasePath is a two-part project (React frontend + Spring Boot backend) that helps job seekers track activity and experiment with automated job applications. The frontend gives authenticated users a dashboard, resume preview, and an "Auto Apply" form, while the backend exposes REST endpoints that currently simulate scraping job boards, handles resume/user DTOs, and centralizes future AI integrations.
+EasePath is a Full Stack project (React frontend + Spring Boot backend) that helps job seekers track activity and experiment with automated job applications. The frontend gives authenticated users a dashboard, resume preview, and an "Auto Apply" form, while the backend exposes REST endpoints that currently simulate scraping job boards, handles resume/user DTOs, and centralizes future AI integrations.
 
 ## Features
 - **Dashboard snapshots** with quick stats for weekly applications, interviews, and AI credit usage.
