@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import com.easepath.backend.dto.AiScoreResult;
 import com.easepath.backend.dto.JobApplicationRequest;
@@ -40,6 +41,11 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         final String jobTitle = request.getJobTitle();
         final String jobBoardUrl = request.getJobBoardUrl();
         final int applicationCount = request.getApplicationCount();
+
+        if (!StringUtils.hasText(jobBoardUrl)) {
+            LOGGER.warn("Job board URL missing, skipping job application automation");
+            return;
+        }
 
         // Placeholder for using the internally managed AI key.
         LOGGER.info("Using AI key (placeholder value truncated): {}", aiApiKey != null && aiApiKey.length() > 6

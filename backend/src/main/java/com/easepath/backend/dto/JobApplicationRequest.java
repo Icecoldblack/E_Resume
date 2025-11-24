@@ -2,10 +2,18 @@ package com.easepath.backend.dto;
 
 import java.util.List;
 
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+
 public class JobApplicationRequest {
 
+    @NotBlank(message = "Job title is required")
     private String jobTitle;
+
+    @NotBlank(message = "Job board URL is required")
     private String jobBoardUrl;
+
+    @Min(value = 1, message = "Application count must be at least 1")
     private int applicationCount;
     private String resumeSummary;
     private String resumeFileName;
