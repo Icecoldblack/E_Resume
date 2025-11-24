@@ -1,5 +1,23 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import './AutoApplyPage.css';
+
+type JobMatchResult = {
+  jobUrl: string
+  title: string
+  status: 'APPLIED' | 'SKIPPED_LOW_SCORE' | 'SKIPPED_PROMPT' | 'SKIPPED_UNRELATED' | 'ERROR'
+  reason?: string
+}
+
+type JobApplicationResult = {
+  jobBoardUrl: string
+  jobTitle: string
+  requestedApplications: number
+  appliedCount: number
+  skippedLowScore: number
+  skippedPrompts: number
+  skippedUnrelated: number
+  matches: JobMatchResult[]
+}
 
 const AutoApplyPage: React.FC = () => {
   const [jobTitle, setJobTitle] = useState('Software Engineering Intern');
@@ -13,6 +31,9 @@ const AutoApplyPage: React.FC = () => {
   const [resumeFileName, setResumeFileName] = useState('');
   const [resumeFileData, setResumeFileData] = useState('');
   const [resumeError, setResumeError] = useState('');
+  const [applyResult, setApplyResult] = useState<JobApplicationResult | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleResumeUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -44,13 +65,20 @@ const AutoApplyPage: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    
-    const preferredCompaniesList = preferredCompanies
+  const preferredCompaniesList = useMemo(
+    () => preferredCompanies
       .split(',')
       .map((company) => company.trim())
-      .filter(Boolean);
+      .filter(Boolean),
+    [preferredCompanies]
+  );
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+    setApplyResult(null);
 
     try {
       const response = await fetch('/api/apply', {
@@ -73,15 +101,17 @@ const AutoApplyPage: React.FC = () => {
       });
 
       if (response.ok) {
-        console.log('Job application process started successfully.');
-        // You might want to show a success message to the user
+        const data: JobApplicationResult = await response.json();
+        setApplyResult(data);
       } else {
-        console.error('Failed to start job application process.');
-        // You might want to show an error message to the user
+        const message = await response.text();
+        throw new Error(message || 'Failed to start job application process.');
       }
     } catch (error) {
       console.error('Error communicating with the backend:', error);
+      setSubmitError(error instanceof Error ? error.message : 'Unknown error communicating with the backend');
     }
+    setIsSubmitting(false);
   };
 
   return (
@@ -170,8 +200,37 @@ const AutoApplyPage: React.FC = () => {
           />
           Also include internship opportunities
         </label>
-        <button type="submit">Start Applying</button>
+        <button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Scanning…' : 'Start Applying'}
+        </button>
         </form>
+        {submitError && <p className="file-error">{submitError}</p>}
+        {applyResult && (
+          <div className="apply-results">
+            <header>
+              <h3>Results</h3>
+              <p>
+                Applied {applyResult.appliedCount} / {applyResult.requestedApplications} •
+                Skipped (score {applyResult.skippedLowScore}, prompts {applyResult.skippedPrompts}, unrelated {applyResult.skippedUnrelated})
+              </p>
+            </header>
+            <ul>
+              {applyResult.matches.map((match, index) => (
+                <li
+                  key={match.jobUrl ? `${match.jobUrl}-${match.status}-${index}` : `${match.status}-${index}`}
+                  className={`match-${match.status.toLowerCase()}`}
+                >
+                  <div>
+                    <strong>{match.title || 'Untitled Job'}</strong>
+                    <span className="match-chip">{match.status.replace(/_/g, ' ')}</span>
+                  </div>
+                  <a href={match.jobUrl} target="_blank" rel="noreferrer">{match.jobUrl}</a>
+                  {match.reason && <p>{match.reason}</p>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
     </div>
   );

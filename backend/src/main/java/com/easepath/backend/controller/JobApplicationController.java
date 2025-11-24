@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.easepath.backend.dto.JobApplicationRequest;
+import com.easepath.backend.dto.JobApplicationResult;
 import com.easepath.backend.service.JobApplicationService;
 
 import jakarta.validation.Valid;
@@ -20,8 +21,8 @@ public class JobApplicationController {
     private JobApplicationService jobApplicationService;
 
     @PostMapping
-    public ResponseEntity<Void> startApplicationProcess(@Valid @RequestBody JobApplicationRequest request) {
-        jobApplicationService.applyToJobs(request);
-        return ResponseEntity.accepted().build();
+    public ResponseEntity<JobApplicationResult> startApplicationProcess(@Valid @RequestBody JobApplicationRequest request) {
+        JobApplicationResult result = jobApplicationService.applyToJobs(request);
+        return ResponseEntity.ok(result);
     }
 }

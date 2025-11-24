@@ -94,3 +94,83 @@
   transform: translateY(-1px);
   box-shadow: 0 12px 25px rgba(139, 102, 255, 0.35);
 }
+
+.auto-apply-form button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+  transform: none;
+  box-shadow: none;
+}
+
+.apply-results {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.apply-results header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.apply-results ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.apply-results li {
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(10, 6, 25, 0.4);
+}
+
+.apply-results li div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.match-chip {
+  font-size: 0.8rem;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.match-applied .match-chip {
+  background: rgba(126, 240, 199, 0.3);
+  color: #7ef0c7;
+}
+
+.match-skipped_low_score .match-chip {
+  background: rgba(255, 193, 114, 0.2);
+  color: #ffc172;
+}
+
+.match-skipped_prompt .match-chip {
+  background: rgba(255, 150, 150, 0.2);
+  color: #ff9696;
+}
+
+.match-skipped_unrelated .match-chip {
+  background: rgba(179, 176, 209, 0.2);
+  color: #b3b0d1;
+}
+
+.match-error .match-chip {
+  background: rgba(255, 99, 132, 0.2);
+  color: #ff6384;
+}

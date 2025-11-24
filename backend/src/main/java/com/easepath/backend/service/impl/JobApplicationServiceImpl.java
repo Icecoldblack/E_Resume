@@ -2,6 +2,8 @@ package com.easepath.backend.service.impl;
 
 import java.io.IOException;
 
+import org.jsoup.Connection;
+import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -16,6 +18,9 @@ import org.springframework.util.StringUtils;
 
 import com.easepath.backend.dto.AiScoreResult;
 import com.easepath.backend.dto.JobApplicationRequest;
+import com.easepath.backend.dto.JobApplicationResult;
+import com.easepath.backend.dto.JobMatchResult;
+import com.easepath.backend.dto.JobMatchResult.MatchStatus;
 import com.easepath.backend.service.AiScoringService;
 import com.easepath.backend.service.JobApplicationService;
 
@@ -24,6 +29,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JobApplicationServiceImpl.class);
     private static final double MIN_AI_SCORE = 0.45;
+    private static final String DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     private final JavaMailSender mailSender;
     private final AiScoringService aiScoringService;
@@ -37,14 +43,18 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     }
 
     @Override
-    public void applyToJobs(JobApplicationRequest request) {
+    public JobApplicationResult applyToJobs(JobApplicationRequest request) {
         final String jobTitle = request.getJobTitle();
         final String jobBoardUrl = request.getJobBoardUrl();
         final int applicationCount = request.getApplicationCount();
+        JobApplicationResult result = new JobApplicationResult();
+        result.setJobBoardUrl(jobBoardUrl);
+        result.setJobTitle(jobTitle);
+        result.setRequestedApplications(applicationCount);
 
         if (!StringUtils.hasText(jobBoardUrl)) {
             LOGGER.warn("Job board URL missing, skipping job application automation");
-            return;
+            return result;
         }
 
         // Placeholder for using the internally managed AI key.
@@ -65,7 +75,15 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         LOGGER.info("Mail sender configured: {}", mailSender != null);
 
         try {
-            Document doc = Jsoup.connect(jobBoardUrl).get();
+            Connection connection = Jsoup.connect(jobBoardUrl)
+                .userAgent(DEFAULT_USER_AGENT)
+                .referrer("https://www.google.com")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Cache-Control", "no-cache")
+                .timeout(15000)
+                .followRedirects(true);
+
+            Document doc = connection.get();
             Elements jobLinks = doc.select("a[href*=/jobs/view/]"); // Example selector for LinkedIn
 
             int appliedCount = 0;
@@ -75,29 +93,49 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                 }
 
                 String jobUrl = link.absUrl("href");
-                if (!isPromisingJob(jobUrl, jobTitle)) {
-                    continue;
-                }
-
                 String linkText = link.text();
                 String jobSnippet = (linkText == null || linkText.isBlank()) ? jobTitle : linkText;
+
+                if (!isPromisingJob(jobUrl, jobTitle)) {
+                    result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
+                        MatchStatus.SKIPPED_UNRELATED, "Did not match job title keywords"));
+                    result.setSkippedUnrelated(result.getSkippedUnrelated() + 1);
+                    continue;
+                }
                 AiScoreResult scoreResult = aiScoringService.scoreJobFit(request, jobSnippet);
                 LOGGER.info("AI score for job '{}': {} ({})", jobSnippet, scoreResult.score(), scoreResult.reasoning());
                 if (scoreResult.score() < MIN_AI_SCORE) {
                     LOGGER.info("Skipping job '{}' due to low AI score", jobUrl);
+                    result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
+                        MatchStatus.SKIPPED_LOW_SCORE, scoreResult.reasoning()));
+                    result.setSkippedLowScore(result.getSkippedLowScore() + 1);
                     continue;
                 }
 
                 if (hasWritingPrompt(jobUrl)) {
                     sendEmailToUser(jobUrl, jobTitle);
+                    result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
+                        MatchStatus.SKIPPED_PROMPT, "Writing prompt detected; emailed user"));
+                    result.setSkippedPrompts(result.getSkippedPrompts() + 1);
                 } else {
                     LOGGER.info("Applying to: {}", jobUrl);
                     appliedCount++;
+                    result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
+                        MatchStatus.APPLIED, scoreResult.reasoning()));
                 }
             }
+            result.setAppliedCount(appliedCount);
+        } catch (HttpStatusException e) {
+            LOGGER.error("HTTP error fetching job board: status={} url={}", e.getStatusCode(), e.getUrl());
+            result.getMatches().add(new JobMatchResult(jobBoardUrl, jobTitle,
+                MatchStatus.ERROR, "HTTP error fetching URL (" + e.getStatusCode() + "): " + e.getUrl()));
         } catch (IOException e) {
             LOGGER.error("Failed to scrape job board: {}", e.getMessage());
+            result.getMatches().add(new JobMatchResult(jobBoardUrl, jobTitle,
+                MatchStatus.ERROR, "Failed to scrape job board: " + e.getMessage()));
         }
+
+        return result;
     }
 
     private boolean isPromisingJob(String jobUrl, String jobTitle) {
