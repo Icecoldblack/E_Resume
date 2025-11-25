@@ -3,7 +3,10 @@ package com.easepath.backend.service.impl;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
+import java.util.List;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -152,33 +155,40 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             if (jobLinks.isEmpty()) {
                 LOGGER.warn("No job links found on the provided URL: {}", jobBoardUrl);
                 result.getMatches().add(new JobMatchResult(jobBoardUrl, "N/A", 
-                    MatchStatus.ERROR, "No job links found on this page. Check the URL or the site structure."));
+                    MatchStatus.ERROR, "No job links found on this page. Check the URL or the site structure.", 0.0));
                 saveApplicationAttempt(jobBoardUrl, "N/A", MatchStatus.ERROR.name(), 0.0, "No job links found.");
             }
 
-            int appliedCount = 0;
+            // Limit the scope of processing to avoid scanning the "whole website"
+            // We will scan up to (requested * 5) links to find the best matches
+            int maxLinksToScan = applicationCount * 5;
+            int scannedCount = 0;
+            
+            List<JobMatchResult> candidates = new ArrayList<>();
+
             for (Element link : jobLinks) {
-                if (appliedCount >= applicationCount) {
+                if (scannedCount >= maxLinksToScan) {
+                    LOGGER.info("Reached scan limit of {} links. Stopping search.", maxLinksToScan);
                     break;
                 }
+                scannedCount++;
 
                 String jobUrl = link.absUrl("href");
                 String linkText = link.text();
                 String jobSnippet = (linkText == null || linkText.isBlank()) ? jobTitle : linkText;
 
                 if (!isPromisingJob(jobUrl, jobTitle)) {
-                    result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
-                        MatchStatus.SKIPPED_UNRELATED, "Did not match job title keywords"));
+                    // Don't clutter the results with hundreds of unrelated links
                     result.setSkippedUnrelated(result.getSkippedUnrelated() + 1);
-                    saveApplicationAttempt(jobUrl, jobSnippet, MatchStatus.SKIPPED_UNRELATED.name(), 0.0, "Did not match job title keywords");
                     continue;
                 }
+                
                 AiScoreResult scoreResult = aiScoringService.scoreJobFit(request, jobSnippet);
                 LOGGER.info("AI score for job '{}': {} ({})", jobSnippet, scoreResult.score(), scoreResult.reasoning());
+                
                 if (scoreResult.score() < MIN_AI_SCORE) {
-                    LOGGER.info("Skipping job '{}' due to low AI score", jobUrl);
                     result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
-                        MatchStatus.SKIPPED_LOW_SCORE, scoreResult.reasoning()));
+                        MatchStatus.SKIPPED_LOW_SCORE, scoreResult.reasoning(), scoreResult.score()));
                     result.setSkippedLowScore(result.getSkippedLowScore() + 1);
                     saveApplicationAttempt(jobUrl, jobSnippet, MatchStatus.SKIPPED_LOW_SCORE.name(), scoreResult.score(), scoreResult.reasoning());
                     continue;
@@ -187,29 +197,41 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                 if (hasWritingPrompt(jobUrl)) {
                     sendEmailToUser(jobUrl, jobTitle);
                     result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
-                        MatchStatus.SKIPPED_PROMPT, "Writing prompt detected; emailed user"));
+                        MatchStatus.SKIPPED_PROMPT, "Writing prompt detected; emailed user", scoreResult.score()));
                     result.setSkippedPrompts(result.getSkippedPrompts() + 1);
                     saveApplicationAttempt(jobUrl, jobSnippet, MatchStatus.SKIPPED_PROMPT.name(), scoreResult.score(), "Writing prompt detected; emailed user");
                 } else {
-                    // Currently we are not actually applying, just identifying matches.
-                    // User requested not to increment count unless we actually apply.
-                    LOGGER.info("Job matched (Application pending): {}", jobUrl);
-                    // appliedCount++; // Commented out as we are not actually applying yet
-                    result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
-                        MatchStatus.PENDING, "Match found. Application logic pending. " + scoreResult.reasoning()));
-                    saveApplicationAttempt(jobUrl, jobSnippet, MatchStatus.PENDING.name(), scoreResult.score(), "Match found. Application logic pending.");
+                    // Add to candidates list instead of applying immediately
+                    candidates.add(new JobMatchResult(jobUrl, jobSnippet,
+                        MatchStatus.PENDING, "Match found. Application logic pending. " + scoreResult.reasoning(), scoreResult.score()));
                 }
             }
+
+            // Sort candidates by score (highest first) and pick the top N
+            candidates.sort(Comparator.comparingDouble(JobMatchResult::getScore).reversed());
+            
+            int appliedCount = 0;
+            for (JobMatchResult candidate : candidates) {
+                if (appliedCount >= applicationCount) {
+                    break;
+                }
+                
+                LOGGER.info("Selected top candidate: {} (Score: {})", candidate.getTitle(), candidate.getScore());
+                result.getMatches().add(candidate);
+                saveApplicationAttempt(candidate.getJobUrl(), candidate.getTitle(), MatchStatus.PENDING.name(), candidate.getScore(), candidate.getReason());
+                appliedCount++;
+            }
+            
             result.setAppliedCount(appliedCount);
         } catch (HttpStatusException e) {
             LOGGER.error("HTTP error fetching job board: status={} url={}", e.getStatusCode(), e.getUrl());
             result.getMatches().add(new JobMatchResult(jobBoardUrl, jobTitle,
-                MatchStatus.ERROR, "HTTP error fetching URL (" + e.getStatusCode() + "): " + e.getUrl()));
+                MatchStatus.ERROR, "HTTP error fetching URL (" + e.getStatusCode() + "): " + e.getUrl(), 0.0));
             saveApplicationAttempt(jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0, "HTTP error: " + e.getStatusCode());
         } catch (IOException e) {
             LOGGER.error("Failed to scrape job board: {}", e.getMessage());
             result.getMatches().add(new JobMatchResult(jobBoardUrl, jobTitle,
-                MatchStatus.ERROR, "Failed to scrape job board: " + e.getMessage()));
+                MatchStatus.ERROR, "Failed to scrape job board: " + e.getMessage(), 0.0));
             saveApplicationAttempt(jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0, "Failed to scrape: " + e.getMessage());
         }
 
