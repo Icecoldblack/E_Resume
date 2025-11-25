@@ -22,6 +22,7 @@ public class JobApplicationRequest {
     private String jobPreference;
     private String salaryRange;
     private boolean lookingForInternships;
+    private String userEmail;
 
     public String getJobTitle() {
         return jobTitle;
@@ -101,5 +102,13 @@ public class JobApplicationRequest {
 
     public void setLookingForInternships(boolean lookingForInternships) {
         this.lookingForInternships = lookingForInternships;
+    }
+
+    public String getUserEmail() {
+        return userEmail;
+    }
+
+    public void setUserEmail(String userEmail) {
+        this.userEmail = userEmail;
     }
 }

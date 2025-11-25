@@ -74,6 +74,12 @@
             <version>1.17.2</version>
         </dependency>
 
+        <!-- For sending emails -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- PDF Parsing -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>

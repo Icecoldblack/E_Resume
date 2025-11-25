@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "EasePathApplication",
+            "request": "launch",
+            "mainClass": "com.easepath.backend.EasePathApplication",
+            "projectName": "e-resume-backend"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-EasePathApplication",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.easepath.backend.EasePathApplication",
+            "projectName": "easepath-backend",
+            "args": "",
+            "envFile": "${workspaceFolder}/backend/.env"
+        }
+    ]
+}

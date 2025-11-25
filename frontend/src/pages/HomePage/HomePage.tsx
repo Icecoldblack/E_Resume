@@ -1,6 +1,7 @@
 import React from 'react';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../../context/AuthContext';
 import SplitText from "../../context/SplitText";
 import StarBorder from "../../context/StarBorder";
@@ -12,9 +13,20 @@ const HomePage: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSuccess = (_response: CredentialResponse) => {
-    login();
-    navigate('/dashboard');
+  const handleSuccess = (response: CredentialResponse) => {
+    if (response.credential) {
+      try {
+        const decoded: any = jwtDecode(response.credential);
+        login({
+          email: decoded.email,
+          name: decoded.name,
+          picture: decoded.picture
+        });
+        navigate('/dashboard');
+      } catch (error) {
+        console.error('Failed to decode token', error);
+      }
+    }
   };
 
   const handleError = () => {

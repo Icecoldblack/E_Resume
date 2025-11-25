@@ -12,14 +12,17 @@ EasePath is a Full Stack project (React frontend + Spring Boot backend) that hel
 - **Resume Management**:
   - **PDF Parsing**: Automatically extracts text from uploaded PDF resumes using Apache PDFBox.
   - **Single Active Resume**: Enforces a "one active resume" policy by replacing old resumes upon new uploads.
+- **Email Notifications**:
+  - **Writing Prompt Alerts**: Notifies users via email if a job application requires manual intervention (e.g., writing prompts/assessments).
+  - **Resend Integration**: Uses Resend (free tier) for reliable email delivery.
 - **Google OAuth sign-in** on the landing page so users authenticate with their Gmail accounts before accessing dashboard tools.
-- **Job Application API** (`POST /api/apply`) that logs the request, scrapes job listings with Jsoup, and simulates AI filtering.
-- **Extensible architecture** with placeholder hooks for AI services (configured via `easepath.ai.api-key`).
+- **Job Application API** (`POST /api/apply`) that logs the request, scrapes job listings with Jsoup, simulates AI filtering, and emails users when manual prompts are detected.
+- **Extensible architecture** with placeholder hooks for AI services (configured via `easepath.ai.api-key`) and SMTP notifications via Spring Mail (configured for Resend).
 
 ## Tech Stack
-- **Frontend:** React 18, TypeScript, Vite, React Router, @react-oauth/google, Axios, custom AuthContext.
+- **Frontend:** React 18, TypeScript, Vite, React Router, @react-oauth/google, Axios, custom AuthContext, jwt-decode.
 - **Styling:** CSS modules per page/component, dark UI system ("Aurora" theme).
-- **Backend:** Java 21, Spring Boot 3.3, Spring Web, Validation, Jsoup (Scraping), Apache PDFBox (PDF Parsing), Maven build.
+- **Backend:** Java 21, Spring Boot 3.3, Spring Web, Validation, Spring Mail, Jsoup (Scraping), Apache PDFBox (PDF Parsing), Maven build.
 
 ## Repository Layout
 ```
@@ -29,7 +32,7 @@ E_Resume/
 │   └── src/main/java/com/easepath/backend/
 │       ├── controller/         # JobApplication, Resume, User controllers
 │       ├── dto/                # JobApplicationRequest, ResumeDto, UserDto, JobMatchResult
-│       └── service/impl/       # Business logic (Scraping, PDF Parsing)
+│       └── service/impl/       # Business logic (Scraping, PDF Parsing, Emailing)
 ├── frontend/                   # React + Vite client
 │   ├── src/components          # Navbar, ProtectedRoute, etc.
 │   └── src/pages               # Home, Dashboard, AutoApply, Settings
@@ -41,6 +44,7 @@ E_Resume/
 ### Prerequisites
 - Node.js 18+ and npm
 - Java 21 (matching `pom.xml`) and Maven 3.9+
+- **Resend API Key**: Sign up at [Resend.com](https://resend.com) (free tier) and generate an API Key.
 
 ### 1. Clone
 ```bash
@@ -51,10 +55,15 @@ cd E_Resume
 ### 2. Backend Setup (`/backend`)
 1. Copy `src/main/resources/application.properties` to a safe location and inject your secrets. Fields to update:
    ```properties
+   # Resend SMTP Configuration
+   spring.mail.username=resend
+   spring.mail.password=${RESEND_API_KEY}
+   
    easepath.ai.api-key=YOUR_AI_SERVICE_KEY
    easepath.ai.score-endpoint=https://api.easepath.ai/v1/score
    spring.data.mongodb.uri=${EASEPATH_MONGODB_URI:mongodb://localhost:27017/easepath}
    ```
+   > **Security Note:** Set `RESEND_API_KEY` as an environment variable.
 2. If you are using MongoDB Atlas or a remote cluster, export `EASEPATH_MONGODB_URI` (and optionally `EASEPATH_MONGODB_DB`) before starting Spring Boot so the backend can persist parsed resumes.
 3. Install dependencies & run:
    ```bash

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import './AutoApplyPage.css';
 
 type JobMatchResult = {
@@ -34,6 +35,7 @@ const AutoApplyPage: React.FC = () => {
   const [applyResult, setApplyResult] = useState<JobApplicationResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user } = useAuth();
 
   const handleResumeUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -97,6 +99,7 @@ const AutoApplyPage: React.FC = () => {
           jobPreference,
           salaryRange,
           lookingForInternships,
+          userEmail: user?.email
         }),
       });
 
