@@ -7,4 +7,6 @@ public interface ResumeService {
     ResumeDto createResume(ResumeDto resume);
 
     ResumeDto getSampleResume();
+
+    void deleteAllResumes();
 }

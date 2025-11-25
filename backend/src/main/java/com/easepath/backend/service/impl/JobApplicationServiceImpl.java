@@ -1,8 +1,12 @@
 package com.easepath.backend.service.impl;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Base64;
 
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.jsoup.Connection;
 import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
@@ -22,10 +26,12 @@ import com.easepath.backend.dto.JobApplicationRequest;
 import com.easepath.backend.dto.JobApplicationResult;
 import com.easepath.backend.dto.JobMatchResult;
 import com.easepath.backend.dto.JobMatchResult.MatchStatus;
+import com.easepath.backend.dto.ResumeDto;
 import com.easepath.backend.model.JobApplicationDocument;
 import com.easepath.backend.repository.JobApplicationRepository;
 import com.easepath.backend.service.AiScoringService;
 import com.easepath.backend.service.JobApplicationService;
+import com.easepath.backend.service.ResumeService;
 
 @Service
 public class JobApplicationServiceImpl implements JobApplicationService {
@@ -37,14 +43,16 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     private final JavaMailSender mailSender;
     private final AiScoringService aiScoringService;
     private final JobApplicationRepository jobApplicationRepository;
+    private final ResumeService resumeService;
 
     @Value("${easepath.ai.api-key:PLACEHOLDER_AI_KEY}")
     private String aiApiKey;
 
-    public JobApplicationServiceImpl(JavaMailSender mailSender, AiScoringService aiScoringService, JobApplicationRepository jobApplicationRepository) {
+    public JobApplicationServiceImpl(JavaMailSender mailSender, AiScoringService aiScoringService, JobApplicationRepository jobApplicationRepository, ResumeService resumeService) {
         this.mailSender = mailSender;
         this.aiScoringService = aiScoringService;
         this.jobApplicationRepository = jobApplicationRepository;
+        this.resumeService = resumeService;
     }
 
     @Override
@@ -56,6 +64,50 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         result.setJobBoardUrl(jobBoardUrl);
         result.setJobTitle(jobTitle);
         result.setRequestedApplications(applicationCount);
+
+        // Save or update the resume used for this application session
+        String resumeId = null;
+        if (StringUtils.hasText(request.getResumeSummary()) || StringUtils.hasText(request.getResumeFileName())) {
+            try {
+                ResumeDto resumeDto = new ResumeDto();
+                String fileName = StringUtils.hasText(request.getResumeFileName()) ? request.getResumeFileName() : "Auto Apply Resume";
+                resumeDto.setTitle(fileName);
+                
+                String parsedText = "";
+                if (StringUtils.hasText(request.getResumeFileData()) && fileName.toLowerCase().endsWith(".pdf")) {
+                    try {
+                        parsedText = extractTextFromPdf(request.getResumeFileData());
+                        LOGGER.info("Successfully parsed PDF resume. Length: {}", parsedText.length());
+                    } catch (Exception e) {
+                        LOGGER.error("Failed to parse PDF resume", e);
+                        parsedText = "Error parsing PDF: " + e.getMessage();
+                    }
+                } else if (StringUtils.hasText(request.getResumeSummary())) {
+                    parsedText = request.getResumeSummary();
+                }
+
+                resumeDto.setParsedText(parsedText);
+                
+                // If summary is empty but we have parsed text, use a snippet of parsed text as summary
+                if (StringUtils.hasText(request.getResumeSummary())) {
+                    resumeDto.setSummary(request.getResumeSummary());
+                } else if (StringUtils.hasText(parsedText)) {
+                    String snippet = parsedText.length() > 500 ? parsedText.substring(0, 500) + "..." : parsedText;
+                    resumeDto.setSummary(snippet);
+                } else {
+                    resumeDto.setSummary("No summary provided and file parsing failed or not supported.");
+                }
+                
+                // Ensure we replace the old resume with the new one
+                resumeService.deleteAllResumes();
+
+                ResumeDto savedResume = resumeService.createResume(resumeDto);
+                resumeId = savedResume.getId();
+                LOGGER.info("Persisted resume for application session: {}", resumeId);
+            } catch (Exception e) {
+                LOGGER.error("Failed to persist resume during application session", e);
+            }
+        }
 
         if (!StringUtils.hasText(jobBoardUrl)) {
             LOGGER.warn("Job board URL missing, skipping job application automation");
@@ -198,5 +250,13 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         message.setText("Please complete the writing prompt for the following job application:\n\n" + jobUrl);
         // mailSender.send(message); // Uncomment when email is configured
         LOGGER.info("Sending email for job with writing prompt: {}", jobUrl);
+    }
+
+    private String extractTextFromPdf(String base64Data) throws IOException {
+        byte[] decodedBytes = Base64.getDecoder().decode(base64Data);
+        try (PDDocument document = PDDocument.load(new ByteArrayInputStream(decodedBytes))) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            return stripper.getText(document);
+        }
     }
 }

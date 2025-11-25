@@ -87,4 +87,9 @@ public class ResumeServiceImpl implements ResumeService {
                 .limit(10)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public void deleteAllResumes() {
+        resumeRepository.deleteAll();
+    }
 }
