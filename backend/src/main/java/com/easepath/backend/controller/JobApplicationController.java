@@ -1,7 +1,10 @@
 package com.easepath.backend.controller;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -9,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.easepath.backend.dto.JobApplicationRequest;
 import com.easepath.backend.dto.JobApplicationResult;
+import com.easepath.backend.model.JobApplicationDocument;
 import com.easepath.backend.service.JobApplicationService;
 
 import jakarta.validation.Valid;
@@ -24,5 +28,10 @@ public class JobApplicationController {
     public ResponseEntity<JobApplicationResult> startApplicationProcess(@Valid @RequestBody JobApplicationRequest request) {
         JobApplicationResult result = jobApplicationService.applyToJobs(request);
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/history")
+    public ResponseEntity<List<JobApplicationDocument>> getApplicationHistory() {
+        return ResponseEntity.ok(jobApplicationService.getApplicationHistory());
     }
 }

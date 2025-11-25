@@ -1,6 +1,7 @@
 package com.easepath.backend.service.impl;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 
 import org.jsoup.Connection;
 import org.jsoup.HttpStatusException;
@@ -21,6 +22,8 @@ import com.easepath.backend.dto.JobApplicationRequest;
 import com.easepath.backend.dto.JobApplicationResult;
 import com.easepath.backend.dto.JobMatchResult;
 import com.easepath.backend.dto.JobMatchResult.MatchStatus;
+import com.easepath.backend.model.JobApplicationDocument;
+import com.easepath.backend.repository.JobApplicationRepository;
 import com.easepath.backend.service.AiScoringService;
 import com.easepath.backend.service.JobApplicationService;
 
@@ -33,13 +36,15 @@ public class JobApplicationServiceImpl implements JobApplicationService {
 
     private final JavaMailSender mailSender;
     private final AiScoringService aiScoringService;
+    private final JobApplicationRepository jobApplicationRepository;
 
     @Value("${easepath.ai.api-key:PLACEHOLDER_AI_KEY}")
     private String aiApiKey;
 
-    public JobApplicationServiceImpl(JavaMailSender mailSender, AiScoringService aiScoringService) {
+    public JobApplicationServiceImpl(JavaMailSender mailSender, AiScoringService aiScoringService, JobApplicationRepository jobApplicationRepository) {
         this.mailSender = mailSender;
         this.aiScoringService = aiScoringService;
+        this.jobApplicationRepository = jobApplicationRepository;
     }
 
     @Override
@@ -100,6 +105,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                     result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
                         MatchStatus.SKIPPED_UNRELATED, "Did not match job title keywords"));
                     result.setSkippedUnrelated(result.getSkippedUnrelated() + 1);
+                    saveApplicationAttempt(jobUrl, jobSnippet, MatchStatus.SKIPPED_UNRELATED.name(), 0.0, "Did not match job title keywords");
                     continue;
                 }
                 AiScoreResult scoreResult = aiScoringService.scoreJobFit(request, jobSnippet);
@@ -109,6 +115,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                     result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
                         MatchStatus.SKIPPED_LOW_SCORE, scoreResult.reasoning()));
                     result.setSkippedLowScore(result.getSkippedLowScore() + 1);
+                    saveApplicationAttempt(jobUrl, jobSnippet, MatchStatus.SKIPPED_LOW_SCORE.name(), scoreResult.score(), scoreResult.reasoning());
                     continue;
                 }
 
@@ -117,11 +124,13 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                     result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
                         MatchStatus.SKIPPED_PROMPT, "Writing prompt detected; emailed user"));
                     result.setSkippedPrompts(result.getSkippedPrompts() + 1);
+                    saveApplicationAttempt(jobUrl, jobSnippet, MatchStatus.SKIPPED_PROMPT.name(), scoreResult.score(), "Writing prompt detected; emailed user");
                 } else {
                     LOGGER.info("Applying to: {}", jobUrl);
                     appliedCount++;
                     result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
                         MatchStatus.APPLIED, scoreResult.reasoning()));
+                    saveApplicationAttempt(jobUrl, jobSnippet, MatchStatus.APPLIED.name(), scoreResult.score(), scoreResult.reasoning());
                 }
             }
             result.setAppliedCount(appliedCount);
@@ -129,13 +138,35 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             LOGGER.error("HTTP error fetching job board: status={} url={}", e.getStatusCode(), e.getUrl());
             result.getMatches().add(new JobMatchResult(jobBoardUrl, jobTitle,
                 MatchStatus.ERROR, "HTTP error fetching URL (" + e.getStatusCode() + "): " + e.getUrl()));
+            saveApplicationAttempt(jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0, "HTTP error: " + e.getStatusCode());
         } catch (IOException e) {
             LOGGER.error("Failed to scrape job board: {}", e.getMessage());
             result.getMatches().add(new JobMatchResult(jobBoardUrl, jobTitle,
                 MatchStatus.ERROR, "Failed to scrape job board: " + e.getMessage()));
+            saveApplicationAttempt(jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0, "Failed to scrape: " + e.getMessage());
         }
 
         return result;
+    }
+
+    @Override
+    public java.util.List<JobApplicationDocument> getApplicationHistory() {
+        return jobApplicationRepository.findAll();
+    }
+
+    private void saveApplicationAttempt(String jobUrl, String jobTitle, String status, double score, String reason) {
+        try {
+            JobApplicationDocument doc = new JobApplicationDocument();
+            doc.setJobUrl(jobUrl);
+            doc.setJobTitle(jobTitle);
+            doc.setStatus(status);
+            doc.setMatchScore(score);
+            doc.setMatchReason(reason);
+            doc.setAppliedAt(LocalDateTime.now());
+            jobApplicationRepository.save(doc);
+        } catch (Exception e) {
+            LOGGER.error("Failed to save job application attempt", e);
+        }
     }
 
     private boolean isPromisingJob(String jobUrl, String jobTitle) {
