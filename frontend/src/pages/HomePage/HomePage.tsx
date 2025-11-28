@@ -38,60 +38,58 @@ const HomePage: React.FC = () => {
   };
 
 const items = [
+  'Item 1',
+  <div key='jsx-item-1'>Custom JSX Content</div>,
   'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
-
+  
+  'Item 2',
+  <div key='jsx-item-2'>Custom JSX Content</div>,
   'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
 
+   'Item 3',
+  <div key='jsx-item-3'>Custom JSX Content</div>,
   'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
+  
 
+  'Item 5',
+  <div key='jsx-item-5'>Custom JSX Content</div>,
   'https://cloudfront-us-east-2.images.arcpublishing.com/reuters/ML434ZX7U5LBHCU4WN5K3W7BZQ.jpg',
 
+  'Item 6',
+  <div key='jsx-item-6'>Custom JSX Content</div>,
   'https://nintendosoup.com/wp-content/uploads/2024/06/Nintendo-HQ-Red-1038x576.jpg',
-
+  
+  'Item 7',
+  <div key='jsx-item-7'>Space-X</div>,
   'https://helios-i.mashable.com/imagery/articles/025DOuFcnh7IGdQC0EYie0I/images-4.fill.size_800x599.v1675105689.jpg',
   
+  'Item 8',
+  <div key='jsx-item-8'>Custom JSX Content</div>,
   'https://images.unsplash.com/photo-1508780709619-79562169bc64?q=80&w=3870&auto=format&fit=crop',
-
-  'https://images.unsplash.com/photo-1537432376769-00a63d6c07f2?q=80&w=3870&auto=format&fit=crop',
- 
-  'https://thebrandhopper.com/wp-content/uploads/2023/03/jp-morgan-chase-title-1024x553.jpg',
- 
-  'https://images.tech.co/wp-content/uploads/2022/03/31082824/AdobeStock_303541183_Editorial_Use_Only-min-708x400.jpeg',
-
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
-
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
-
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
-
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
-
-  'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
-
-  'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
-
-  'https://cloudfront-us-east-2.images.arcpublishing.com/reuters/ML434ZX7U5LBHCU4WN5K3W7BZQ.jpg',
-
-  'https://nintendosoup.com/wp-content/uploads/2024/06/Nintendo-HQ-Red-1038x576.jpg',
-
-  'https://helios-i.mashable.com/imagery/articles/025DOuFcnh7IGdQC0EYie0I/images-4.fill.size_800x599.v1675105689.jpg',
   
-  'https://images.unsplash.com/photo-1508780709619-79562169bc64?q=80&w=3870&auto=format&fit=crop',
-
+  'Item 9',
+  <div key='jsx-item-9'>Custom JSX Content</div>,
   'https://images.unsplash.com/photo-1537432376769-00a63d6c07f2?q=80&w=3870&auto=format&fit=crop',
- 
+  
+  'Item 10',
+  <div key='jsx-item-10'>Custom JSX Content</div>,
   'https://thebrandhopper.com/wp-content/uploads/2023/03/jp-morgan-chase-title-1024x553.jpg',
- 
+  
+  'Item 11',
+  <div key='jsx-item-11'>Microsoft</div>,
   'https://images.tech.co/wp-content/uploads/2022/03/31082824/AdobeStock_303541183_Editorial_Use_Only-min-708x400.jpeg',
 
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+  'Item 12',
+  <div key='jsx-item-12'>Microsoft</div>,
+  'https://images.tech.co/wp-content/uploads/2022/03/31082824/AdobeStock_303541183_Editorial_Use_Only-min-708x400.jpeg',
 
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+  'Item 13',
+  <div key='jsx-item-13'>Microsoft</div>,
+  'https://images.tech.co/wp-content/uploads/2022/03/31082824/AdobeStock_303541183_Editorial_Use_Only-min-708x400.jpeg',
 
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
-
-  'https://images.unsplash.com/photo-1537432376769-00a63d6c07f2?q=80&w=3870&auto=format&fit=crop',
- 
+  'Item 14',
+  <div key='jsx-item-14'>Microsoft</div>,
+  'https://images.tech.co/wp-content/uploads/2022/03/31082824/AdobeStock_303541183_Editorial_Use_Only-min-708x400.jpeg',
 
 ];
 
