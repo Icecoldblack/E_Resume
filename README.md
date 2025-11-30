@@ -44,6 +44,7 @@ E_Resume/
 ### Prerequisites
 - Node.js 18+ and npm
 - Java 21 (matching `pom.xml`) and Maven 3.9+
+- **Docker Desktop**: Required for running the database automatically.
 - **Resend API Key**: Sign up at [Resend.com](https://resend.com) (free tier) and generate an API Key.
 
 ### 1. Clone
@@ -53,7 +54,8 @@ cd E_Resume
 ```
 
 ### 2. Backend Setup (`/backend`)
-1. Copy `src/main/resources/application.properties` to a safe location and inject your secrets. Fields to update:
+1. **Start Docker Desktop**: Ensure Docker is running on your machine.
+2. Copy `src/main/resources/application.properties` to a safe location and inject your secrets. Fields to update:
    ```properties
    # Resend SMTP Configuration
    spring.mail.username=resend
@@ -61,15 +63,15 @@ cd E_Resume
    
    easepath.ai.api-key=YOUR_AI_SERVICE_KEY
    easepath.ai.score-endpoint=https://api.easepath.ai/v1/score
-   spring.data.mongodb.uri=${EASEPATH_MONGODB_URI:mongodb://localhost:27017/easepath}
+   # Database is auto-configured via Docker Compose (no change needed for local dev)
    ```
    > **Security Note:** Set `RESEND_API_KEY` as an environment variable.
-2. If you are using MongoDB Atlas or a remote cluster, export `EASEPATH_MONGODB_URI` (and optionally `EASEPATH_MONGODB_DB`) before starting Spring Boot so the backend can persist parsed resumes.
-3. Install dependencies & run:
+3. **Run the App**:
    ```bash
    mvn spring-boot:run
    ```
-3. API defaults to `http://localhost:8080`.
+   *The application will automatically detect the `compose.yaml` file in the root directory and spin up a MongoDB container for you.*
+4. API defaults to `http://localhost:8080`.
 
 ### 3. Frontend Setup (`/frontend`)
 1. Create a `.env` (or `.env.local`) file and add your Google OAuth client ID:
