@@ -136,6 +136,29 @@ public class ExtensionController {
     }
 
     /**
+     * Get user's resume file data for extension to upload to job sites.
+     * Returns base64-encoded file data along with filename and content type.
+     */
+    @GetMapping("/resume-file")
+    public ResponseEntity<Map<String, Object>> getResumeFile(@RequestParam(value = "email") String email) {
+        log.info("Fetching resume file for extension upload, user: {}", email);
+        
+        return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(email)
+            .map(resume -> {
+                Map<String, Object> response = new HashMap<>();
+                response.put("fileName", resume.getFileName());
+                response.put("contentType", resume.getContentType());
+                response.put("fileData", resume.getFileData()); // Base64 encoded
+                response.put("fileSize", resume.getFileSize());
+                return ResponseEntity.ok(response);
+            })
+            .orElseGet(() -> {
+                log.warn("No resume found for user: {}", email);
+                return ResponseEntity.notFound().build();
+            });
+    }
+
+    /**
      * Record user correction (helps AI learn).
      */
     @PostMapping("/feedback/correction")

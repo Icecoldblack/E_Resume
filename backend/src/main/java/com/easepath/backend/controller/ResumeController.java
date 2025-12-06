@@ -19,7 +19,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.easepath.backend.dto.ResumeDto;
 import com.easepath.backend.model.ResumeDocument;
-import com.easepath.backend.model.UserProfileDocument;
 import com.easepath.backend.repository.ResumeRepository;
 import com.easepath.backend.repository.UserProfileRepository;
 import com.easepath.backend.service.ResumeService;

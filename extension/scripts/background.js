@@ -136,6 +136,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ status: 'ok' });
         return true;
     }
+    
+    // Handle resume file request (for uploading to job sites)
+    if (request.action === "get_resume_file") {
+        if (!userEmail) {
+            sendResponse({ error: "Not logged in" });
+            return true;
+        }
+        
+        fetch(`${API_BASE_URL}/resume-file?email=${encodeURIComponent(userEmail)}`)
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                console.log("Background: Got resume file:", data.fileName);
+                sendResponse({
+                    fileName: data.fileName,
+                    contentType: data.contentType,
+                    fileData: data.fileData, // Base64
+                    fileSize: data.fileSize
+                });
+            })
+            .catch(err => {
+                console.error("Background: Failed to get resume:", err);
+                sendResponse({ error: "Could not fetch resume" });
+            });
+        
+        return true; // Keep channel open for async
+    }
 });
 
 // Extract platform name from URL

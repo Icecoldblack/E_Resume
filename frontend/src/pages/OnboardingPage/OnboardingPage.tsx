@@ -47,6 +47,7 @@ interface OnboardingData {
   disabilityStatus: string;
   gender: string;
   ethnicity: string;
+  lgbtqIdentity: string;
 }
 
 const OnboardingPage: React.FC = () => {
@@ -88,6 +89,7 @@ const OnboardingPage: React.FC = () => {
     disabilityStatus: 'Prefer not to say',
     gender: 'Prefer not to say',
     ethnicity: 'Prefer not to say',
+    lgbtqIdentity: 'Prefer not to say',
   });
 
   const totalSteps = 5;
@@ -145,6 +147,7 @@ const OnboardingPage: React.FC = () => {
             disabilityStatus: profile.disabilityStatus || prev.disabilityStatus,
             gender: profile.gender || prev.gender,
             ethnicity: profile.ethnicity || prev.ethnicity,
+            lgbtqIdentity: profile.lgbtqIdentity || prev.lgbtqIdentity,
           }));
         }
       } catch (err) {
@@ -569,6 +572,15 @@ const OnboardingPage: React.FC = () => {
                 <option value="Native Hawaiian or Other Pacific Islander">Native Hawaiian or Other Pacific Islander</option>
                 <option value="White">White</option>
                 <option value="Two or More Races">Two or More Races</option>
+              </select>
+            </div>
+            
+            <div className="form-group">
+              <label>Do you identify as LGBTQ+?</label>
+              <select name="lgbtqIdentity" value={formData.lgbtqIdentity} onChange={handleChange}>
+                <option value="Prefer not to say">I don't wish to answer</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
               </select>
             </div>
           </div>

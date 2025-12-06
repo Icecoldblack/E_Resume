@@ -53,6 +53,7 @@ public class UserProfileDocument {
     private String disabilityStatus; // "Yes", "No", "Prefer not to say"
     private String gender; // For EEO
     private String ethnicity; // For EEO
+    private String lgbtqIdentity; // "Yes", "No", "Prefer not to say"
     
     // Availability
     private String availableStartDate;
@@ -159,6 +160,9 @@ public class UserProfileDocument {
 
     public String getEthnicity() { return ethnicity; }
     public void setEthnicity(String ethnicity) { this.ethnicity = ethnicity; }
+
+    public String getLgbtqIdentity() { return lgbtqIdentity; }
+    public void setLgbtqIdentity(String lgbtqIdentity) { this.lgbtqIdentity = lgbtqIdentity; }
 
     public String getAvailableStartDate() { return availableStartDate; }
     public void setAvailableStartDate(String availableStartDate) { this.availableStartDate = availableStartDate; }

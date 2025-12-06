@@ -37,11 +37,19 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
         const formFields = collectFormFieldsWithContext();
         console.log("EasePath: Found", formFields.length, "fields");
         
-        // 3. Identify essay/long-answer questions
+        // 3. Identify essay/long-answer questions and file uploads
         const essayQuestions = formFields.filter(f => isEssayQuestion(f));
-        const regularFields = formFields.filter(f => !isEssayQuestion(f));
+        const fileFields = formFields.filter(f => f.type === 'file' || f.type === 'dropzone');
+        const regularFields = formFields.filter(f => !isEssayQuestion(f) && f.type !== 'file' && f.type !== 'dropzone');
         
-        // 4. Send to backend for AI mapping
+        // 4. Handle resume file uploads first
+        let resumeUploaded = false;
+        if (fileFields.length > 0) {
+            console.log("EasePath: Found", fileFields.length, "file upload fields");
+            resumeUploaded = await handleResumeUploads(fileFields);
+        }
+        
+        // 5. Send to backend for AI mapping
         chrome.runtime.sendMessage({
             action: "fetch_ai_mapping",
             formData: regularFields,
@@ -77,13 +85,15 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
                     showEssayNotification(essayQuestions);
                 }
                 
+                const totalFilled = filledCount + (resumeUploaded ? 1 : 0);
                 sendResponse({
                     status: 'success',
-                    filledCount: filledCount,
+                    filledCount: totalFilled,
+                    resumeUploaded: resumeUploaded,
                     essayQuestions: essayQuestions.length,
                     message: essayQuestions.length > 0 
-                        ? `Filled ${filledCount} fields. ${essayQuestions.length} essay question(s) need your attention.`
-                        : `Filled ${filledCount} fields successfully!`
+                        ? `Filled ${totalFilled} fields. ${essayQuestions.length} essay question(s) need your attention.`
+                        : `Filled ${totalFilled} fields successfully!${resumeUploaded ? ' Resume uploaded!' : ''}`
                 });
             } else {
                 sendResponse({ status: 'error', error: 'No field mappings found' });
@@ -184,12 +194,65 @@ function detectPlatform() {
 function collectFormFieldsWithContext() {
     const fields = [];
     const inputs = document.querySelectorAll('input, textarea, select');
+    const processedGroups = new Set(); // Track processed checkbox/radio groups
     
     inputs.forEach((input, index) => {
         // Skip hidden and invisible fields
         if (input.type === 'hidden' || !isElementVisible(input)) return;
         // Skip submit/button types
         if (['submit', 'button', 'reset', 'image'].includes(input.type)) return;
+        
+        // Handle checkbox groups (like demographic questions)
+        if (input.type === 'checkbox') {
+            const groupId = getCheckboxGroupId(input);
+            if (processedGroups.has(groupId)) return; // Already processed this group
+            processedGroups.add(groupId);
+            
+            const groupOptions = getCheckboxGroupOptions(input);
+            const field = {
+                index: index,
+                id: groupId,
+                name: input.name || null,
+                type: 'checkbox-group',
+                tagName: 'checkbox-group',
+                label: getCheckboxGroupLabel(input),
+                placeholder: null,
+                ariaLabel: null,
+                required: input.required || input.hasAttribute('required'),
+                maxLength: null,
+                pattern: null,
+                currentValue: '',
+                options: groupOptions,
+                parentSection: findParentSection(input),
+                nearbyText: getNearbyText(input),
+                isLongAnswer: false,
+                dataAttributes: getDataAttributes(input)
+            };
+            fields.push(field);
+            return;
+        }
+        
+        // Handle file inputs (resume upload)
+        if (input.type === 'file') {
+            const field = {
+                index: index,
+                id: input.id || `file_${index}`,
+                name: input.name || null,
+                type: 'file',
+                tagName: 'input',
+                label: findLabelForInput(input),
+                placeholder: null,
+                ariaLabel: input.getAttribute('aria-label') || null,
+                required: input.required || input.hasAttribute('required'),
+                accept: input.accept || null,
+                parentSection: findParentSection(input),
+                nearbyText: getNearbyText(input),
+                isLongAnswer: false,
+                dataAttributes: getDataAttributes(input)
+            };
+            fields.push(field);
+            return;
+        }
         
         const field = {
             index: index,
@@ -214,7 +277,98 @@ function collectFormFieldsWithContext() {
         fields.push(field);
     });
     
+    // Also find drag-and-drop upload zones
+    const dropZones = document.querySelectorAll('[class*="upload"], [class*="drop"], [data-testid*="upload"], [data-testid*="resume"]');
+    dropZones.forEach((zone, idx) => {
+        if (zone.querySelector('input[type="file"]')) return; // Already has file input
+        const label = zone.textContent.trim().substring(0, 100);
+        if (label.toLowerCase().includes('upload') || label.toLowerCase().includes('resume') || label.toLowerCase().includes('drop')) {
+            fields.push({
+                index: 1000 + idx,
+                id: zone.id || `dropzone_${idx}`,
+                name: null,
+                type: 'dropzone',
+                tagName: 'div',
+                label: label,
+                parentSection: findParentSection(zone),
+                nearbyText: null,
+                isLongAnswer: false,
+                dataAttributes: getDataAttributes(zone)
+            });
+        }
+    });
+    
     return fields;
+}
+
+/**
+ * Get a unique ID for a checkbox group based on parent container or question text
+ */
+function getCheckboxGroupId(checkbox) {
+    // Try to find the parent question container
+    const parent = checkbox.closest('fieldset, .question, .form-group, [role="group"], [class*="question"]');
+    if (parent) {
+        if (parent.id) return parent.id;
+        const legend = parent.querySelector('legend, label, .question-text, h3, h4');
+        if (legend) return 'group_' + legend.textContent.trim().substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_');
+    }
+    // Fallback to name attribute
+    return checkbox.name || 'checkbox_group_' + Math.random().toString(36).substring(7);
+}
+
+/**
+ * Get the question/label for a checkbox group
+ */
+function getCheckboxGroupLabel(checkbox) {
+    // Look for parent container with question text
+    const parent = checkbox.closest('fieldset, .question, .form-group, [role="group"], [class*="question"]');
+    if (parent) {
+        // Look for legend, heading, or label
+        const legend = parent.querySelector('legend');
+        if (legend) return cleanText(legend.textContent);
+        
+        const heading = parent.querySelector('h3, h4, h5, .question-text, .field-label');
+        if (heading) return cleanText(heading.textContent);
+        
+        // Get the first text node or paragraph
+        const textElements = parent.querySelectorAll('p, span, label');
+        for (const el of textElements) {
+            const text = cleanText(el.textContent);
+            if (text.length > 10 && text.includes('?')) return text;
+        }
+    }
+    
+    // Try to find label near the checkbox
+    return findLabelForInput(checkbox);
+}
+
+/**
+ * Get all options in a checkbox group
+ */
+function getCheckboxGroupOptions(checkbox) {
+    const options = [];
+    const parent = checkbox.closest('fieldset, .question, .form-group, [role="group"], [class*="question"]');
+    
+    let checkboxes;
+    if (parent) {
+        checkboxes = parent.querySelectorAll('input[type="checkbox"]');
+    } else if (checkbox.name) {
+        checkboxes = document.querySelectorAll(`input[name="${checkbox.name}"]`);
+    } else {
+        checkboxes = [checkbox];
+    }
+    
+    checkboxes.forEach(cb => {
+        const label = findLabelForInput(cb);
+        options.push({
+            value: cb.value || label,
+            text: label || cb.value,
+            id: cb.id,
+            checked: cb.checked
+        });
+    });
+    
+    return options;
 }
 
 /**
@@ -375,64 +529,256 @@ function isEssayQuestion(field) {
  */
 function applySmartMapping(mapping, fields) {
     console.log("EasePath: Applying smart mapping:", mapping);
+    console.log("EasePath: Available fields:", fields.map(f => ({ id: f.id, name: f.name, label: f.label, type: f.type })));
     let filledCount = 0;
     
     for (const [identifier, value] of Object.entries(mapping)) {
         if (!value || value === '') continue;
         
-        // Find the element
-        let element = document.getElementById(identifier);
-        if (!element) {
-            element = document.querySelector(`[name="${identifier}"]`);
-        }
-        if (!element) {
-            // Try to find by index
-            const field = fields.find(f => f.id === identifier || f.name === identifier);
-            if (field && field.index !== undefined) {
-                const allInputs = document.querySelectorAll('input, textarea, select');
-                element = allInputs[field.index];
+        console.log("EasePath: Trying to fill identifier:", identifier, "with value:", value);
+        
+        // Check if this is a checkbox group
+        const fieldInfo = fields.find(f => f.id === identifier || f.name === identifier);
+        if (fieldInfo && fieldInfo.type === 'checkbox-group') {
+            const success = fillCheckboxGroup(identifier, value, fields);
+            if (success) {
+                filledCount++;
+                console.log("EasePath: Successfully filled checkbox group:", identifier);
             }
+            continue;
         }
         
+        // Find the element using multiple strategies
+        let element = findElementByIdentifier(identifier, fields);
+        
         if (element) {
-            if (element.tagName === 'SELECT') {
-                // Handle select dropdowns
-                fillSelectElement(element, value);
-            } else if (element.type === 'checkbox') {
-                // Handle checkboxes
-                element.checked = value === true || value === 'true' || value === 'yes';
-                element.dispatchEvent(new Event('change', { bubbles: true }));
-            } else if (element.type === 'radio') {
-                // Handle radio buttons
-                const radioGroup = document.querySelectorAll(`input[name="${element.name}"]`);
-                radioGroup.forEach(radio => {
-                    if (radio.value.toLowerCase() === value.toLowerCase()) {
-                        radio.checked = true;
-                        radio.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                });
-            } else {
-                // Handle regular inputs
-                element.value = value;
-                element.dispatchEvent(new Event('input', { bubbles: true }));
-                element.dispatchEvent(new Event('change', { bubbles: true }));
-                // Some React apps need focus/blur
-                element.dispatchEvent(new Event('focus', { bubbles: true }));
-                element.dispatchEvent(new Event('blur', { bubbles: true }));
+            const success = fillElement(element, value);
+            if (success) {
+                filledCount++;
+                console.log("EasePath: Successfully filled:", identifier);
             }
-            
-            // Visual feedback
-            element.style.backgroundColor = "#e0f7fa";
-            element.style.transition = "background-color 0.3s";
-            setTimeout(() => {
-                element.style.backgroundColor = "";
-            }, 2000);
-            
-            filledCount++;
+        } else {
+            console.log("EasePath: Could not find element for:", identifier);
         }
     }
     
     return filledCount;
+}
+
+/**
+ * Find an element using multiple strategies
+ */
+function findElementByIdentifier(identifier, fields) {
+    // Strategy 1: Direct ID match
+    let element = document.getElementById(identifier);
+    if (element) return element;
+    
+    // Strategy 2: Direct name match
+    element = document.querySelector(`[name="${identifier}"]`);
+    if (element) return element;
+    
+    // Strategy 3: Partial ID match (for dynamic IDs like "input_12345_firstName")
+    element = document.querySelector(`[id*="${identifier}"]`);
+    if (element) return element;
+    
+    // Strategy 4: Data attribute match
+    element = document.querySelector(`[data-field="${identifier}"]`);
+    if (element) return element;
+    
+    // Strategy 5: Find from our collected fields
+    const field = fields.find(f => f.id === identifier || f.name === identifier);
+    if (field) {
+        // Try by index
+        if (field.index !== undefined) {
+            const allInputs = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select');
+            const visibleInputs = Array.from(allInputs).filter(el => isElementVisible(el));
+            if (visibleInputs[field.index]) {
+                return visibleInputs[field.index];
+            }
+        }
+    }
+    
+    // Strategy 6: Find by aria-label
+    element = document.querySelector(`[aria-label="${identifier}"]`);
+    if (element) return element;
+    
+    return null;
+}
+
+/**
+ * Fill an element with a value, handling different input types
+ */
+function fillElement(element, value) {
+    if (!element) return false;
+    
+    const tagName = element.tagName.toUpperCase();
+    const inputType = (element.type || '').toLowerCase();
+    
+    try {
+        if (tagName === 'SELECT') {
+            return fillSelectElement(element, value);
+        } else if (inputType === 'checkbox') {
+            return fillCheckbox(element, value);
+        } else if (inputType === 'radio') {
+            return fillRadio(element, value);
+        } else if (tagName === 'TEXTAREA' || tagName === 'INPUT') {
+            return fillTextInput(element, value);
+        }
+    } catch (error) {
+        console.error("EasePath: Error filling element:", error);
+    }
+    
+    return false;
+}
+
+/**
+ * Fill a checkbox group (demographic questions, etc.)
+ */
+function fillCheckboxGroup(groupId, value, fields) {
+    console.log("EasePath: Filling checkbox group:", groupId, "with value:", value);
+    
+    // Find the group in our collected fields
+    const groupField = fields.find(f => f.id === groupId && f.type === 'checkbox-group');
+    
+    if (!groupField || !groupField.options) {
+        console.log("EasePath: Checkbox group not found in fields");
+        return false;
+    }
+    
+    const valueLower = value.toString().toLowerCase().trim();
+    
+    // Try to find matching option
+    for (const option of groupField.options) {
+        const optText = option.text.toLowerCase();
+        const optValue = option.value.toLowerCase();
+        
+        // Check for match
+        if (optText.includes(valueLower) || 
+            valueLower.includes(optText) ||
+            optValue.includes(valueLower) ||
+            valueLower.includes(optValue)) {
+            
+            // Find the checkbox element
+            let checkbox = option.id ? document.getElementById(option.id) : null;
+            if (!checkbox) {
+                checkbox = document.querySelector(`input[type="checkbox"][value="${option.value}"]`);
+            }
+            
+            if (checkbox && !checkbox.checked) {
+                checkbox.click();
+                highlightElement(checkbox.parentElement || checkbox);
+                console.log("EasePath: Clicked checkbox:", option.text);
+                return true;
+            }
+        }
+    }
+    
+    // Special handling for common responses
+    if (valueLower.includes('prefer not') || valueLower.includes('decline') || valueLower.includes("don't wish")) {
+        for (const option of groupField.options) {
+            const optText = option.text.toLowerCase();
+            if (optText.includes("don't wish") || optText.includes("prefer not") || optText.includes("decline")) {
+                let checkbox = option.id ? document.getElementById(option.id) : null;
+                if (checkbox && !checkbox.checked) {
+                    checkbox.click();
+                    highlightElement(checkbox.parentElement || checkbox);
+                    return true;
+                }
+            }
+        }
+    }
+    
+    console.log("EasePath: No matching checkbox found for:", value);
+    return false;
+}
+
+/**
+ * Fill a text input or textarea - works with React/Angular/Vue
+ */
+function fillTextInput(element, value) {
+    // Store the original value
+    const originalValue = element.value;
+    
+    // Method 1: Native value descriptor (works with React)
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype, 'value'
+    )?.set;
+    const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype, 'value'
+    )?.set;
+    
+    // Focus the element first
+    element.focus();
+    
+    // Set value using native setter to trigger React's synthetic events
+    if (element.tagName === 'TEXTAREA' && nativeTextAreaValueSetter) {
+        nativeTextAreaValueSetter.call(element, value);
+    } else if (nativeInputValueSetter) {
+        nativeInputValueSetter.call(element, value);
+    } else {
+        element.value = value;
+    }
+    
+    // Dispatch events in the correct order
+    element.dispatchEvent(new Event('focus', { bubbles: true }));
+    element.dispatchEvent(new Event('input', { bubbles: true, inputType: 'insertText' }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    element.dispatchEvent(new Event('blur', { bubbles: true }));
+    
+    // For some frameworks, also dispatch keyboard events
+    element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+    element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+    
+    // Visual feedback - green highlight
+    element.style.backgroundColor = "#c8e6c9";
+    element.style.transition = "background-color 0.5s";
+    setTimeout(() => {
+        element.style.backgroundColor = "";
+    }, 2000);
+    
+    return element.value === value || element.value !== originalValue;
+}
+
+/**
+ * Fill a checkbox
+ */
+function fillCheckbox(element, value) {
+    const shouldCheck = value === true || 
+                        value === 'true' || 
+                        value === 'yes' || 
+                        value === 'Yes' ||
+                        value === '1';
+    
+    if (element.checked !== shouldCheck) {
+        element.click(); // Use click() for better framework compatibility
+    }
+    
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+}
+
+/**
+ * Fill a radio button group
+ */
+function fillRadio(element, value) {
+    const name = element.name;
+    const radioGroup = document.querySelectorAll(`input[name="${name}"]`);
+    const valueLower = value.toLowerCase().trim();
+    
+    for (const radio of radioGroup) {
+        const radioValue = radio.value.toLowerCase().trim();
+        const radioLabel = findLabelForInput(radio).toLowerCase();
+        
+        if (radioValue === valueLower || 
+            radioLabel.includes(valueLower) || 
+            valueLower.includes(radioValue)) {
+            radio.click();
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 /**
@@ -441,38 +787,87 @@ function applySmartMapping(mapping, fields) {
 function fillSelectElement(select, value) {
     const valueLower = value.toLowerCase().trim();
     
-    // Try exact value match
+    // Try exact value match first
     for (const option of select.options) {
         if (option.value.toLowerCase() === valueLower) {
             select.value = option.value;
             select.dispatchEvent(new Event('change', { bubbles: true }));
+            highlightElement(select);
             return true;
         }
     }
     
-    // Try text match
+    // Try exact text match
+    for (const option of select.options) {
+        if (option.text.toLowerCase().trim() === valueLower) {
+            select.value = option.value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            highlightElement(select);
+            return true;
+        }
+    }
+    
+    // Try text contains match
     for (const option of select.options) {
         if (option.text.toLowerCase().includes(valueLower) || 
             valueLower.includes(option.text.toLowerCase())) {
             select.value = option.value;
             select.dispatchEvent(new Event('change', { bubbles: true }));
+            highlightElement(select);
             return true;
         }
     }
     
-    // Try partial match
+    // Try partial word match
+    const valueWords = valueLower.split(/\s+/);
     for (const option of select.options) {
         const optText = option.text.toLowerCase();
-        const optValue = option.value.toLowerCase();
-        if (optText.includes(valueLower.split(' ')[0]) || 
-            optValue.includes(valueLower.split(' ')[0])) {
+        if (valueWords.some(word => word.length > 2 && optText.includes(word))) {
             select.value = option.value;
             select.dispatchEvent(new Event('change', { bubbles: true }));
+            highlightElement(select);
             return true;
         }
     }
     
+    // Special handling for Yes/No questions
+    if (valueLower === 'yes' || valueLower === 'true' || valueLower === '1') {
+        for (const option of select.options) {
+            const optText = option.text.toLowerCase();
+            if (optText.includes('yes') || optText === 'y' || optText === 'true') {
+                select.value = option.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                highlightElement(select);
+                return true;
+            }
+        }
+    }
+    if (valueLower === 'no' || valueLower === 'false' || valueLower === '0') {
+        for (const option of select.options) {
+            const optText = option.text.toLowerCase();
+            if (optText.includes('no') || optText === 'n' || optText === 'false') {
+                select.value = option.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                highlightElement(select);
+                return true;
+            }
+        }
+    }
+    
+    console.log("EasePath: Could not find matching option for:", value, "in select with options:", 
+        Array.from(select.options).map(o => o.text));
     return false;
+}
+
+/**
+ * Highlight an element to show it was filled
+ */
+function highlightElement(element) {
+    element.style.backgroundColor = "#c8e6c9";
+    element.style.transition = "background-color 0.5s";
+    setTimeout(() => {
+        element.style.backgroundColor = "";
+    }, 2000);
 }
 
 /**
@@ -662,5 +1057,159 @@ document.addEventListener('click', (e) => {
         }
     }
 }, true);
+
+/**
+ * Handle resume file uploads
+ */
+async function handleResumeUploads(fileFields) {
+    console.log("EasePath: Attempting to upload resume to", fileFields.length, "file fields");
+    
+    return new Promise((resolve) => {
+        // Request resume file from background script
+        chrome.runtime.sendMessage({ action: "get_resume_file" }, async (response) => {
+            if (chrome.runtime.lastError) {
+                console.error("EasePath: Error getting resume:", chrome.runtime.lastError);
+                resolve(false);
+                return;
+            }
+            
+            if (response && response.error) {
+                console.log("EasePath: No resume available:", response.error);
+                resolve(false);
+                return;
+            }
+            
+            if (!response || !response.fileData) {
+                console.log("EasePath: No resume file data returned");
+                resolve(false);
+                return;
+            }
+            
+            console.log("EasePath: Got resume:", response.fileName, response.contentType);
+            
+            // Convert base64 to File object
+            try {
+                const byteCharacters = atob(response.fileData);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: response.contentType });
+                const file = new File([blob], response.fileName, { type: response.contentType });
+                
+                // Try to upload to each file field
+                let uploaded = false;
+                for (const fieldInfo of fileFields) {
+                    if (fieldInfo.type === 'file') {
+                        const input = document.getElementById(fieldInfo.id) || 
+                                     document.querySelector(`input[type="file"][name="${fieldInfo.name}"]`) ||
+                                     document.querySelector('input[type="file"]');
+                        
+                        if (input) {
+                            const success = await uploadToFileInput(input, file);
+                            if (success) {
+                                uploaded = true;
+                                console.log("EasePath: Resume uploaded successfully!");
+                                break;
+                            }
+                        }
+                    } else if (fieldInfo.type === 'dropzone') {
+                        // Handle drag-and-drop zones
+                        const dropzone = document.getElementById(fieldInfo.id) ||
+                                        document.querySelector('[class*="upload"], [class*="drop"]');
+                        if (dropzone) {
+                            const success = await uploadToDropzone(dropzone, file);
+                            if (success) {
+                                uploaded = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                resolve(uploaded);
+            } catch (err) {
+                console.error("EasePath: Error processing resume file:", err);
+                resolve(false);
+            }
+        });
+    });
+}
+
+/**
+ * Upload a file to a file input element
+ */
+async function uploadToFileInput(input, file) {
+    try {
+        // Create a DataTransfer object to set files on the input
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        input.files = dataTransfer.files;
+        
+        // Dispatch events
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        
+        // Visual feedback
+        highlightElement(input.parentElement || input);
+        
+        console.log("EasePath: File set on input:", input.id || input.name);
+        return true;
+    } catch (err) {
+        console.error("EasePath: Failed to set file on input:", err);
+        return false;
+    }
+}
+
+/**
+ * Upload a file to a drag-and-drop zone
+ */
+async function uploadToDropzone(dropzone, file) {
+    try {
+        // Create drag events with the file
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        
+        // Simulate drag and drop sequence
+        const dragEnterEvent = new DragEvent('dragenter', {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer: dataTransfer
+        });
+        
+        const dragOverEvent = new DragEvent('dragover', {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer: dataTransfer
+        });
+        
+        const dropEvent = new DragEvent('drop', {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer: dataTransfer
+        });
+        
+        dropzone.dispatchEvent(dragEnterEvent);
+        dropzone.dispatchEvent(dragOverEvent);
+        dropzone.dispatchEvent(dropEvent);
+        
+        // Also look for hidden file input inside dropzone and set it
+        const hiddenInput = dropzone.querySelector('input[type="file"]');
+        if (hiddenInput) {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            hiddenInput.files = dt.files;
+            hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        
+        highlightElement(dropzone);
+        console.log("EasePath: File dropped on dropzone");
+        return true;
+    } catch (err) {
+        console.error("EasePath: Failed to drop file on dropzone:", err);
+        return false;
+    }
+}
 
 console.log("EasePath: Content script loaded and ready");

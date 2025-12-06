@@ -201,8 +201,11 @@ public class FormMappingServiceImpl implements FormMappingService {
         if (matches(combined, "gender", "sex")) {
             return "gender";
         }
-        if (matches(combined, "ethnicity", "race", "ethnic")) {
+        if (matches(combined, "ethnicity", "race", "ethnic", "categories describe")) {
             return "ethnicity";
+        }
+        if (matches(combined, "lgbtq", "lesbian", "gay", "bisexual", "sexual orientation")) {
+            return "lgbtqIdentity";
         }
         if (matches(combined, "citizen", "us citizen", "citizenship")) {
             return "isUsCitizen";
@@ -258,6 +261,7 @@ public class FormMappingServiceImpl implements FormMappingService {
             case "disabilityStatus" -> profile.getDisabilityStatus();
             case "gender" -> profile.getGender();
             case "ethnicity" -> profile.getEthnicity();
+            case "lgbtqIdentity" -> profile.getLgbtqIdentity();
             case "availableStartDate" -> profile.getAvailableStartDate();
             case "willingToRelocate" -> profile.isWillingToRelocate() ? "Yes" : "No";
             case "preferredLocations" -> profile.getPreferredLocations();
