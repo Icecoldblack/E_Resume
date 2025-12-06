@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
@@ -23,106 +23,6 @@ const SettingsPage: React.FC = () => {
     maxPerDay: 25,
     preferRemote: true,
   });
-  
-  // Resume state
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [currentResume, setCurrentResume] = useState<string | null>(null);
-  const [uploadingResume, setUploadingResume] = useState(false);
-  const [resumeMessage, setResumeMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-
-  useEffect(() => {
-    // Fetch current resume info
-    fetchCurrentResume();
-  }, []);
-
-  const fetchCurrentResume = async () => {
-    try {
-      const userEmail = user?.email || localStorage.getItem('easepath_user_email');
-      if (!userEmail) return;
-      
-      const response = await fetch(`http://localhost:8080/api/resume/${encodeURIComponent(userEmail)}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.fileName) {
-          setCurrentResume(data.fileName);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching resume:', error);
-    }
-  };
-
-  const handleResumeUpload = async () => {
-    if (!resumeFile) {
-      setResumeMessage({ type: 'error', text: 'Please select a resume file first' });
-      return;
-    }
-
-    setUploadingResume(true);
-    setResumeMessage(null);
-
-    try {
-      const userEmail = user?.email || localStorage.getItem('easepath_user_email');
-      if (!userEmail) {
-        setResumeMessage({ type: 'error', text: 'User not logged in' });
-        setUploadingResume(false);
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', resumeFile);
-      formData.append('userEmail', userEmail);
-
-      const response = await fetch('http://localhost:8080/api/resume/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setResumeMessage({ type: 'success', text: result.message || 'Resume uploaded successfully!' });
-        setCurrentResume(resumeFile.name);
-        setResumeFile(null);
-        // Reset file input
-        const fileInput = document.getElementById('resume-upload') as HTMLInputElement;
-        if (fileInput) fileInput.value = '';
-      } else {
-        let errorMessage = 'Failed to upload resume';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-        } catch {
-          const errorText = await response.text();
-          errorMessage = errorText || errorMessage;
-        }
-        setResumeMessage({ type: 'error', text: errorMessage });
-      }
-    } catch (error) {
-      console.error('Error uploading resume:', error);
-      setResumeMessage({ type: 'error', text: 'Error uploading resume. Please try again.' });
-    } finally {
-      setUploadingResume(false);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-      if (!validTypes.includes(file.type)) {
-        setResumeMessage({ type: 'error', text: 'Please upload a PDF or Word document' });
-        return;
-      }
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setResumeMessage({ type: 'error', text: 'File size must be less than 5MB' });
-        return;
-      }
-      setResumeFile(file);
-      setResumeMessage(null);
-    }
-  };
 
   const handleNavClick = (nav: string, path: string) => {
     setActiveNav(nav);
@@ -175,6 +75,16 @@ const SettingsPage: React.FC = () => {
           </motion.div>
           
           <motion.div 
+            className={`nav-item ${activeNav === 'jobs' ? 'active' : ''}`}
+            onClick={() => handleNavClick('jobs', '/jobs')}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <span className="nav-icon">💼</span>
+            {!sidebarCollapsed && <span className="nav-text">Find Jobs</span>}
+          </motion.div>
+
+          <motion.div 
             className={`nav-item ${activeNav === 'auto-apply' ? 'active' : ''}`}
             onClick={() => handleNavClick('auto-apply', '/auto-apply')}
             whileHover={{ x: 4 }}
@@ -185,18 +95,8 @@ const SettingsPage: React.FC = () => {
           </motion.div>
           
           <motion.div 
-            className={`nav-item ${activeNav === 'jobs' ? 'active' : ''}`}
-            onClick={() => handleNavClick('jobs', '/jobs')}
-            whileHover={{ x: 4 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <span className="nav-icon">💼</span>
-            {!sidebarCollapsed && <span className="nav-text">Find Jobs</span>}
-          </motion.div>
-          
-          <motion.div 
             className={`nav-item ${activeNav === 'resume' ? 'active' : ''}`}
-            onClick={() => handleNavClick('resume', '/settings')}
+            onClick={() => handleNavClick('resume', '/resume')}
             whileHover={{ x: 4 }}
             whileTap={{ scale: 0.98 }}
           >
@@ -411,94 +311,12 @@ const SettingsPage: React.FC = () => {
             </div>
           </motion.div>
 
-          {/* Resume Card - NEW */}
-          <motion.div 
-            className="settings-card resume-card"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-          >
-            <div className="card-header">
-              <div className="card-icon resume-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                  <polyline points="10 9 9 9 8 9" />
-                </svg>
-              </div>
-              <h3>Resume</h3>
-            </div>
-            <div className="card-content">
-              {currentResume && (
-                <div className="current-resume">
-                  <div className="resume-info">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                    </svg>
-                    <span className="resume-name">{currentResume}</span>
-                  </div>
-                  <span className="resume-status">✓ Uploaded</span>
-                </div>
-              )}
-              
-              <div className="resume-upload-section">
-                <label htmlFor="resume-upload" className="upload-label">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" />
-                  </svg>
-                  <span>{resumeFile ? resumeFile.name : 'Choose a file or drag it here'}</span>
-                  <span className="upload-hint">PDF, DOC, DOCX (max 5MB)</span>
-                </label>
-                <input 
-                  type="file" 
-                  id="resume-upload" 
-                  accept=".pdf,.doc,.docx"
-                  onChange={handleFileChange}
-                  hidden
-                />
-              </div>
-
-              {resumeMessage && (
-                <div className={`resume-message ${resumeMessage.type}`}>
-                  {resumeMessage.text}
-                </div>
-              )}
-
-              <button 
-                className="upload-btn"
-                onClick={handleResumeUpload}
-                disabled={!resumeFile || uploadingResume}
-              >
-                {uploadingResume ? (
-                  <>
-                    <span className="spinner"></span>
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="17 8 12 3 7 8" />
-                      <line x1="12" y1="3" x2="12" y2="15" />
-                    </svg>
-                    {currentResume ? 'Update Resume' : 'Upload Resume'}
-                  </>
-                )}
-              </button>
-            </div>
-          </motion.div>
-
           {/* Profile Card - Edit your job seeker profile */}
           <motion.div 
             className="settings-card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.28 }}
+            transition={{ delay: 0.25 }}
           >
             <div className="card-header">
               <div className="card-icon profile-icon">

@@ -428,6 +428,16 @@ const JobsPage: React.FC = () => {
             <span className="nav-icon">🚀</span>
             {!sidebarCollapsed && <span className="nav-text">Auto Apply</span>}
           </motion.div>
+          
+          <motion.div 
+            className={`nav-item ${activeNav === 'resume' ? 'active' : ''}`}
+            onClick={() => handleNavClick('resume', '/resume')}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <span className="nav-icon">📄</span>
+            {!sidebarCollapsed && <span className="nav-text">Resume</span>}
+          </motion.div>
 
           <motion.div 
             className={`nav-item ${activeNav === 'settings' ? 'active' : ''}`}

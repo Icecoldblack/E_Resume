@@ -1,0 +1,729 @@
+/* Resume Page Styles - Matching Dashboard Theme */
+
+/* Main Container */
+.resume-container {
+  display: flex;
+  min-height: 100vh;
+  height: 100%;
+  background: linear-gradient(135deg, #0f0a1e 0%, #1a1035 100%);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow-x: hidden;
+  transition: background 0.3s ease;
+}
+
+.resume-container.light {
+  background: #f8f5f1;
+}
+
+/* Sidebar Styles */
+.resume-sidebar {
+  width: 260px;
+  background: #1e3a5f;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  position: fixed;
+  height: 100vh;
+  left: 0;
+  top: 0;
+  z-index: 100;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.resume-sidebar.collapsed {
+  width: 70px;
+  padding: 24px 10px;
+}
+
+.resume-container.light .resume-sidebar {
+  background: #ffffff;
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 24px;
+}
+
+.resume-sidebar.collapsed .sidebar-logo {
+  padding: 0 0 24px;
+  justify-content: center;
+}
+
+.resume-container.light .sidebar-logo {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: white;
+  font-size: 16px;
+}
+
+.logo-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.resume-container.light .logo-text {
+  color: #1a1a2e;
+}
+
+/* Sidebar Toggle Button */
+.sidebar-toggle {
+  position: absolute;
+  right: -12px;
+  top: 70px;
+  width: 24px;
+  height: 24px;
+  background: #1e3a5f;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.8);
+  transition: all 0.2s ease;
+  z-index: 101;
+}
+
+.sidebar-toggle:hover {
+  background: #2d4a6f;
+  color: #ffffff;
+}
+
+.resume-container.light .sidebar-toggle {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  color: #1a1a2e;
+}
+
+.resume-container.light .sidebar-toggle:hover {
+  background: #f5f0eb;
+}
+
+/* Navigation */
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.resume-sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 12px;
+}
+
+.nav-item:hover {
+  background: #2d4a6f;
+  color: #ffffff;
+}
+
+.resume-container.light .nav-item {
+  color: rgba(26, 26, 46, 0.6);
+}
+
+.resume-container.light .nav-item:hover {
+  background: #f5f0eb;
+  color: #1a1a2e;
+}
+
+.resume-container.light .nav-item.active {
+  color: white;
+}
+
+.nav-item.active {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.nav-icon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+
+.nav-text {
+  white-space: nowrap;
+}
+
+/* Sidebar Footer */
+.sidebar-footer {
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: auto;
+}
+
+.resume-container.light .sidebar-footer {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  overflow: hidden;
+}
+
+.resume-sidebar.collapsed .user-profile {
+  justify-content: center;
+}
+
+.user-profile:hover {
+  background: #2d4a6f;
+}
+
+.resume-container.light .user-profile:hover {
+  background: #f5f0eb;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: white;
+  font-size: 14px;
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  display: block;
+}
+
+.resume-container.light .user-name {
+  color: #1a1a2e;
+}
+
+.user-email {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.resume-container.light .user-email {
+  color: rgba(26, 26, 46, 0.6);
+}
+
+/* Main Content Area */
+.resume-main {
+  flex: 1;
+  margin-left: 260px;
+  padding: 32px;
+  overflow-y: auto;
+  transition: margin-left 0.3s ease;
+}
+
+.resume-main.expanded {
+  margin-left: 70px;
+}
+
+/* Resume Header */
+.resume-header {
+  margin-bottom: 32px;
+}
+
+.header-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 4px 0;
+}
+
+.resume-container.light .header-title {
+  color: #1a1a2e;
+}
+
+.header-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+}
+
+.resume-container.light .header-subtitle {
+  color: rgba(26, 26, 46, 0.6);
+}
+
+/* Resume Content */
+.resume-content {
+  max-width: 1200px;
+}
+
+.resume-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 1024px) {
+  .resume-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Resume Cards */
+.resume-card {
+  background: #fef7eb;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.resume-container.light .resume-card {
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.resume-card .card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.resume-card .card-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.resume-card .card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+}
+
+.resume-card .card-icon.current-icon {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.resume-card .card-icon.tips-icon {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.resume-card .card-content {
+  padding: 24px;
+}
+
+/* Upload Card - Full Width */
+.upload-card {
+  grid-column: 1 / -1;
+}
+
+/* Upload Zone */
+.upload-zone {
+  border: 2px dashed rgba(99, 102, 241, 0.3);
+  border-radius: 16px;
+  transition: all 0.3s ease;
+  margin-bottom: 20px;
+}
+
+.upload-zone:hover,
+.upload-zone.dragging {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.upload-zone.has-file {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.upload-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  cursor: pointer;
+  color: #6b7280;
+  text-align: center;
+}
+
+.upload-label svg {
+  color: #8b5cf6;
+}
+
+.upload-text {
+  font-size: 16px;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.upload-or {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.upload-browse {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6366f1;
+  padding: 8px 20px;
+  border: 1px solid #6366f1;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.upload-browse:hover {
+  background: #6366f1;
+  color: white;
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* File Preview */
+.file-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-preview svg {
+  color: #10b981;
+}
+
+.file-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.file-size {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* Resume Message */
+.resume-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.resume-message.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.resume-message.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Upload Button */
+.upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.upload-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+}
+
+.upload-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Current Resume Card */
+.current-resume-info {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.resume-file-display {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 12px;
+}
+
+.file-icon-large {
+  color: #10b981;
+}
+
+.file-details {
+  flex: 1;
+}
+
+.current-file-name {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 4px;
+}
+
+.upload-date {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(16, 185, 129, 0.15);
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #059669;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Resume Actions */
+.resume-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-btn {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: #6366f1;
+}
+
+.view-btn:hover {
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.download-btn {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: #059669;
+}
+
+.download-btn:hover {
+  background: rgba(16, 185, 129, 0.15);
+}
+
+/* No Resume State */
+.no-resume {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.no-resume-icon {
+  color: #d1d5db;
+  margin-bottom: 16px;
+}
+
+.no-resume h4 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.no-resume p {
+  margin: 0;
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+/* Tips Card */
+.tips-card {
+  grid-column: 1 / -1;
+}
+
+.tips-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.tip-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(245, 158, 11, 0.08);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.tip-item:hover {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.tip-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-radius: 50%;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.tip-text {
+  font-size: 14px;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .resume-main {
+    margin-left: 0;
+    padding: 20px;
+  }
+  
+  .resume-sidebar {
+    display: none;
+  }
+  
+  .resume-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .upload-label {
+    padding: 32px 16px;
+  }
+  
+  .resume-actions {
+    flex-direction: column;
+  }
+  
+  .tips-list {
+    grid-template-columns: 1fr;
+  }
+}

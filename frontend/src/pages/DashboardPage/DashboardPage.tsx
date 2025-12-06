@@ -144,6 +144,16 @@ const DashboardPage: React.FC = () => {
           </motion.div>
           
           <motion.div 
+            className={`nav-item ${activeNav === 'jobs' ? 'active' : ''}`}
+            onClick={() => handleNavClick('jobs', '/jobs')}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <span className="nav-icon">💼</span>
+            {!sidebarCollapsed && <span className="nav-text">Find Jobs</span>}
+          </motion.div>
+
+          <motion.div 
             className={`nav-item ${activeNav === 'auto-apply' ? 'active' : ''}`}
             onClick={() => handleNavClick('auto-apply', '/auto-apply')}
             whileHover={{ x: 4 }}
@@ -154,18 +164,8 @@ const DashboardPage: React.FC = () => {
           </motion.div>
           
           <motion.div 
-            className={`nav-item ${activeNav === 'jobs' ? 'active' : ''}`}
-            onClick={() => handleNavClick('jobs', '/jobs')}
-            whileHover={{ x: 4 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <span className="nav-icon">💼</span>
-            {!sidebarCollapsed && <span className="nav-text">Find Jobs</span>}
-          </motion.div>
-          
-          <motion.div 
             className={`nav-item ${activeNav === 'resume' ? 'active' : ''}`}
-            onClick={() => handleNavClick('resume', '/settings')}
+            onClick={() => handleNavClick('resume', '/resume')}
             whileHover={{ x: 4 }}
             whileTap={{ scale: 0.98 }}
           >
