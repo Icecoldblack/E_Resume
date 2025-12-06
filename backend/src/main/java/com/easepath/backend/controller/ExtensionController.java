@@ -35,7 +35,7 @@ import com.easepath.backend.service.FormMappingService;
  */
 @RestController
 @RequestMapping("/api/extension")
-@CrossOrigin(origins = "*") // Allow extension to call from any origin
+@CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*", "chrome-extension://*"}, allowCredentials = "true")
 public class ExtensionController {
 
     private static final Logger log = LoggerFactory.getLogger(ExtensionController.class);

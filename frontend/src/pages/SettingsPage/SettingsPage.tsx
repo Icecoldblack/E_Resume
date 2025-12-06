@@ -493,6 +493,39 @@ const SettingsPage: React.FC = () => {
             </div>
           </motion.div>
 
+          {/* Profile Card - Edit your job seeker profile */}
+          <motion.div 
+            className="settings-card"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.28 }}
+          >
+            <div className="card-header">
+              <div className="card-icon profile-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </div>
+              <h3>Job Seeker Profile</h3>
+            </div>
+            <div className="card-content">
+              <p className="profile-description">
+                Update your personal information, work authorization, education, and job preferences. This data is used to auto-fill job applications.
+              </p>
+              <button 
+                className="settings-btn primary edit-profile-btn"
+                onClick={() => navigate('/onboarding?edit=true')}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                Edit Profile
+              </button>
+            </div>
+          </motion.div>
+
           {/* Account Card - Simplified for Google sign-in */}
           <motion.div 
             className="settings-card"

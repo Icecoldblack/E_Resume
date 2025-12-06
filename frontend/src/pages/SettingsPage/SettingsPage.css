@@ -781,6 +781,43 @@
   color: #dc2626;
 }
 
+/* Primary Button Style */
+.settings-btn.primary {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border: none;
+  color: white;
+}
+
+.settings-btn.primary:hover {
+  background: linear-gradient(135deg, #5558e3 0%, #7c4deb 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+}
+
+.settings-container.light .settings-btn.primary {
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+/* Profile Card Styles */
+.profile-icon {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+}
+
+.profile-description {
+  color: #a0a0b0;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.settings-container.light .profile-description {
+  color: #64748b;
+}
+
+.edit-profile-btn {
+  margin-top: auto;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .settings-grid {

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EasePath</title>
     <link rel="stylesheet" href="popup.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
@@ -21,7 +22,7 @@
 
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab active" data-tab="autofill">✨ Autofill</button>
+            <button class="tab active" data-tab="autofill">✨ Auto Apply</button>
             <button class="tab" data-tab="profile">👤 Profile</button>
         </div>
 
@@ -46,17 +47,35 @@
 
             <!-- Connected State -->
             <div id="connected" class="section hidden">
+                <!-- Auto-Apply Toggle -->
+                <div class="auto-apply-section">
+                    <div class="auto-apply-header">
+                        <div class="auto-apply-title">
+                            <span>🚀</span>
+                            Auto-Apply Mode
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="auto-apply-toggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <p class="auto-apply-description">
+                        When enabled, AI will fill ALL fields and automatically submit the application for you.
+                    </p>
+                </div>
+
                 <!-- AI Feature Banner -->
                 <div class="feature-banner" id="feature-banner">
                     <div class="feature-header">
-                        <span class="feature-icon">✨</span>
-                        <span class="feature-title">Autofill Every Question With AI</span>
+                        <span class="feature-icon">🧠</span>
+                        <span class="feature-title">AI-Powered Smart Fill</span>
                         <button id="close-banner" class="close-btn">×</button>
                     </div>
                     <ul class="feature-list">
-                        <li>AI Autofill fills almost every question using your profile.</li>
-                        <li>Basic autofill for direct profile fields is always free.</li>
-                        <li>Your data is securely stored and never shared.</li>
+                        <li>AI learns from your applications to improve accuracy</li>
+                        <li>Automatically fills forms using your profile data</li>
+                        <li>Uploads your resume to job sites automatically</li>
+                        <li>Your data is securely stored and never shared</li>
                     </ul>
                 </div>
 
@@ -65,17 +84,31 @@
                     <div class="action-header">
                         <span class="action-icon">⚡</span>
                         <div class="action-text">
-                            <strong>Autofill this job application!</strong>
-                            <span id="stats-text" class="stats">Ready to fill</span>
+                            <strong>Ready to apply!</strong>
+                            <span id="stats-text" class="stats">Scanning page...</span>
                         </div>
                     </div>
                     <button id="autofill-btn" class="autofill-btn">
-                        ✨ Autofill this page
+                        ✨ Fill & Apply Now
                     </button>
                 </div>
 
                 <!-- Status Messages -->
                 <div id="message-area" class="message-area hidden"></div>
+
+                <!-- Learning Progress Section -->
+                <div class="learning-section">
+                    <div class="learning-header">
+                        <span class="learning-icon">📚</span>
+                        <span class="learning-title">AI Learning Progress</span>
+                    </div>
+                    <div class="learning-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="learning-progress" style="width: 0%"></div>
+                        </div>
+                        <span class="progress-text" id="learning-text">0 patterns learned</span>
+                    </div>
+                </div>
 
                 <!-- Resume Section -->
                 <div class="resume-section">
@@ -83,7 +116,7 @@
                         <span class="section-icon">📄</span>
                         <span class="section-title">Resume</span>
                     </div>
-                    <div id="resume-info" class="resume-info">
+                    <div class="resume-info">
                         <span id="resume-name" class="resume-name">No resume uploaded</span>
                         <button id="view-resume-btn" class="icon-btn small hidden">👁️</button>
                     </div>
@@ -92,10 +125,10 @@
                 <!-- Quick Actions -->
                 <div class="quick-actions">
                     <button id="feedback-btn" class="action-link">
-                        <span>✓</span> This worked correctly
+                        <span>✓</span> Worked!
                     </button>
                     <button id="report-btn" class="action-link">
-                        <span>🚩</span> Report an issue
+                        <span>🚩</span> Report Issue
                     </button>
                 </div>
             </div>
@@ -105,7 +138,11 @@
         <div id="profile-tab" class="tab-content">
             <div id="profile-not-connected" class="section">
                 <div class="info-card">
-                    <p>Connect to EasePath to view your profile.</p>
+                    <div class="info-icon">👤</div>
+                    <div class="info-content">
+                        <strong>Connect to view profile</strong>
+                        <p>Link your EasePath account to see your profile details.</p>
+                    </div>
                 </div>
             </div>
             
@@ -129,9 +166,26 @@
                     </div>
                 </div>
 
+                <!-- Learning Stats -->
+                <div class="learning-section">
+                    <div class="learning-header">
+                        <span class="learning-icon">🎯</span>
+                        <span class="learning-title">Success Rate</span>
+                    </div>
+                    <div class="learning-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="success-rate" style="width: 0%"></div>
+                        </div>
+                        <span class="progress-text" id="success-text">--%</span>
+                    </div>
+                </div>
+
                 <div class="profile-actions">
                     <a href="http://localhost:5173/settings" target="_blank" class="secondary-btn full-width">
                         ✏️ Edit Profile
+                    </a>
+                    <a href="http://localhost:5173/dashboard" target="_blank" class="secondary-btn full-width">
+                        📊 View Dashboard
                     </a>
                     <button id="disconnect-btn" class="text-btn">
                         Disconnect Account
@@ -142,7 +196,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <span>EasePath v1.0</span>
+            <span>EasePath v1.1</span>
             <a href="http://localhost:5173/dashboard" target="_blank">Dashboard →</a>
         </footer>
     </div>

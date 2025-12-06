@@ -57,6 +57,15 @@ const OnboardingPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Check if we're in edit mode (coming from settings)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('edit') === 'true') {
+      setIsEditMode(true);
+    }
+  }, []);
   
   const [formData, setFormData] = useState<OnboardingData>({
     firstName: '',
@@ -110,8 +119,8 @@ const OnboardingPage: React.FC = () => {
         if (response.ok) {
           const profile = await response.json();
           
-          // If onboarding already completed, redirect to dashboard
-          if (profile.onboardingCompleted) {
+          // If onboarding already completed and NOT in edit mode, redirect to dashboard
+          if (profile.onboardingCompleted && !isEditMode) {
             updateUser({ onboardingCompleted: true });
             navigate('/dashboard');
             return;
@@ -180,6 +189,12 @@ const OnboardingPage: React.FC = () => {
     }
   };
 
+  const handleSkipOnboarding = () => {
+    // Mark onboarding as completed locally so user can proceed
+    updateUser({ onboardingCompleted: true });
+    navigate('/dashboard');
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setError(null);
@@ -201,7 +216,7 @@ const OnboardingPage: React.FC = () => {
       // Update local user state to mark onboarding as complete
       updateUser({ onboardingCompleted: true });
       
-      navigate('/dashboard');
+      navigate(isEditMode ? '/settings' : '/dashboard');
     } catch (err) {
       setError('Failed to save your profile. Please try again.');
     } finally {
@@ -638,10 +653,36 @@ const OnboardingPage: React.FC = () => {
               onClick={handleSubmit}
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Saving...' : '🚀 Complete Setup'}
+              {isSubmitting ? 'Saving...' : (isEditMode ? '💾 Save Changes' : '🚀 Complete Setup')}
             </button>
           )}
         </div>
+        
+        {/* Skip / Cancel button */}
+        {!isEditMode && (
+          <div className="skip-section">
+            <button 
+              type="button" 
+              className="btn-skip"
+              onClick={handleSkipOnboarding}
+            >
+              Skip for now →
+            </button>
+            <p className="skip-note">You can complete your profile later in Settings</p>
+          </div>
+        )}
+        
+        {isEditMode && (
+          <div className="skip-section">
+            <button 
+              type="button" 
+              className="btn-skip"
+              onClick={() => navigate('/settings')}
+            >
+              ← Cancel and go back
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

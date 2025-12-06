@@ -48,15 +48,20 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     private final JobApplicationRepository jobApplicationRepository;
     private final ResumeService resumeService;
 
-    @Value("${easepath.ai.api-key:PLACEHOLDER_AI_KEY}")
-    private String aiApiKey;
-
-    public JobApplicationServiceImpl(JavaMailSender mailSender, AiScoringService aiScoringService, JobApplicationRepository jobApplicationRepository, ResumeService resumeService) {
+    @org.springframework.beans.factory.annotation.Autowired
+    public JobApplicationServiceImpl(
+            @org.springframework.beans.factory.annotation.Autowired(required = false) JavaMailSender mailSender,
+            AiScoringService aiScoringService,
+            JobApplicationRepository jobApplicationRepository,
+            ResumeService resumeService) {
         this.mailSender = mailSender;
         this.aiScoringService = aiScoringService;
         this.jobApplicationRepository = jobApplicationRepository;
         this.resumeService = resumeService;
     }
+
+    @Value("${easepath.ai.api-key:PLACEHOLDER_AI_KEY}")
+    private String aiApiKey;
 
     @Override
     public JobApplicationResult applyToJobs(JobApplicationRequest request) {
