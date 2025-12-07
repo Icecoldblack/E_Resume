@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
+import { API_BASE_URL } from '../../config';
 import { useTheme } from '../../context/ThemeContext';
 import './ResumePage.css';
 
@@ -51,7 +52,7 @@ const ResumePage: React.FC = () => {
       const userEmail = user?.email || localStorage.getItem('easepath_user_email');
       if (!userEmail) return;
       
-      const response = await fetch(`http://localhost:8080/api/resume/${encodeURIComponent(userEmail)}`);
+      const response = await fetch(`${API_BASE_URL}/api/resume/${encodeURIComponent(userEmail)}`);
       if (response.ok) {
         const data = await response.json();
         if (data && data.fileName) {
@@ -84,7 +85,7 @@ const ResumePage: React.FC = () => {
       formData.append('file', resumeFile);
       formData.append('userEmail', userEmail);
 
-      const response = await fetch('http://localhost:8080/api/resume/upload', {
+      const response = await fetch(`${API_BASE_URL}/api/resume/upload`, {
         method: 'POST',
         body: formData,
       });

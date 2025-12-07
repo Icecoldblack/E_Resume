@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { API_BASE_URL } from '../../config';
 import './OnboardingPage.css';
 
 interface OnboardingData {
@@ -113,7 +114,7 @@ const OnboardingPage: React.FC = () => {
       
       try {
         const response = await fetch(
-          `http://localhost:8080/api/extension/profile?email=${encodeURIComponent(user.email)}`
+          `${API_BASE_URL}/api/extension/profile?email=${encodeURIComponent(user.email)}`
         );
         
         if (response.ok) {
@@ -200,7 +201,7 @@ const OnboardingPage: React.FC = () => {
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:8080/api/extension/profile', {
+      const response = await fetch(`${API_BASE_URL}/api/extension/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -3,6 +3,7 @@ import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../../context/AuthContext';
+import { API_BASE_URL } from '../../config';
 import SplitText from "../../context/SplitText";
 import StarBorder from "../../context/StarBorder";
 import Aurora from '../../context/Aurora';
@@ -22,7 +23,7 @@ const HomePage: React.FC = () => {
         let onboardingCompleted = false;
         try {
           const profileResponse = await fetch(
-            `http://localhost:8080/api/extension/profile?email=${encodeURIComponent(decoded.email)}`
+            `${API_BASE_URL}/api/extension/profile?email=${encodeURIComponent(decoded.email)}`
           );
           if (profileResponse.ok) {
             const profile = await profileResponse.json();

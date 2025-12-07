@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
+import { API_BASE_URL } from '../../config';
 import { useTheme } from '../../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import './DashboardPage.css';
@@ -44,7 +45,7 @@ const DashboardPage: React.FC = () => {
     const fetchApplications = async () => {
       try {
         // Fetch from the real backend API
-        const response = await fetch('http://localhost:8080/api/apply/history');
+        const response = await fetch(`${API_BASE_URL}/api/apply/history`);
         if (!response.ok) throw new Error('Failed to fetch');
         const data = await response.json();
         
