@@ -21,10 +21,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.easepath.backend.dto.ResumeDto;
 import com.easepath.backend.model.ResumeDocument;
+import com.easepath.backend.model.User;
 import com.easepath.backend.repository.ResumeRepository;
 import com.easepath.backend.repository.UserProfileRepository;
 import com.easepath.backend.service.ResumeService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -62,17 +64,15 @@ public class ResumeController {
     @PostMapping("/upload")
     public ResponseEntity<Map<String, Object>> uploadResume(
             @RequestParam(value = "file") MultipartFile file,
-            @RequestParam(value = "userEmail", required = false) String userEmail,
-            @RequestParam(value = "email", required = false) String email) {
+            HttpServletRequest request) {
 
-        // Support both parameter names
-        String actualEmail = userEmail != null ? userEmail : email;
-        
-        log.info("Uploading resume for user: {}, file: {}", actualEmail, file.getOriginalFilename());
-
-        if (actualEmail == null || actualEmail.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Email is required"));
+        User currentUser = (User) request.getAttribute("currentUser");
+        if (currentUser == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
         }
+        
+        String userEmail = currentUser.getEmail();
+        log.info("Uploading resume for user: {}, file: {}", userEmail, file.getOriginalFilename());
 
         // Validate file
         if (file.isEmpty()) {
@@ -94,15 +94,15 @@ public class ResumeController {
 
         try {
             // Delete ALL existing resumes for this user (ensures no duplicates)
-            List<ResumeDocument> existingResumes = resumeRepository.findAllByUserEmail(actualEmail);
+            List<ResumeDocument> existingResumes = resumeRepository.findAllByUserEmail(userEmail);
             if (!existingResumes.isEmpty()) {
-                log.info("Deleting {} existing resume(s) for user: {}", existingResumes.size(), actualEmail);
+                log.info("Deleting {} existing resume(s) for user: {}", existingResumes.size(), userEmail);
                 resumeRepository.deleteAll(existingResumes);
             }
             
             // Store the new resume
             ResumeDocument resumeDoc = new ResumeDocument();
-            resumeDoc.setUserEmail(actualEmail);
+            resumeDoc.setUserEmail(userEmail);
             resumeDoc.setFileName(file.getOriginalFilename());
             resumeDoc.setContentType(contentType);
             resumeDoc.setFileData(Base64.getEncoder().encodeToString(file.getBytes()));
@@ -112,7 +112,7 @@ public class ResumeController {
             resumeRepository.save(resumeDoc);
 
             // Update user profile with resume filename
-            userProfileRepository.findByEmail(actualEmail).ifPresent(profile -> {
+            userProfileRepository.findByEmail(userEmail).ifPresent(profile -> {
                 profile.setResumeFileName(file.getOriginalFilename());
                 profile.setUpdatedAt(Instant.now());
                 userProfileRepository.save(profile);
@@ -123,7 +123,7 @@ public class ResumeController {
             response.put("fileName", file.getOriginalFilename());
             response.put("message", "Resume uploaded successfully");
 
-            log.info("Resume uploaded successfully for user: {}", actualEmail);
+            log.info("Resume uploaded successfully for user: {}", userEmail);
             return ResponseEntity.ok(response);
 
         } catch (IOException e) {
@@ -153,8 +153,13 @@ public class ResumeController {
      * Get the user's current resume info.
      */
     @GetMapping
-    public ResponseEntity<Map<String, Object>> getResume(@RequestParam("email") String email) {
-        return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(email)
+    public ResponseEntity<Map<String, Object>> getResume(HttpServletRequest request) {
+        User currentUser = (User) request.getAttribute("currentUser");
+        if (currentUser == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        
+        return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(currentUser.getEmail())
                 .map(resume -> {
                     Map<String, Object> response = new HashMap<>();
                     response.put("fileName", resume.getFileName());

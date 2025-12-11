@@ -12,38 +12,66 @@ public class JobSearchCache {
     @Id
     private String id;
     
-    @Indexed
+    @Indexed(unique = true)
     private String query;
     
     private String resultJson;
     
-    private Instant createdAt;
+    private Instant cachedAt;
     
-    // Cache expires after 24 hours (86400 seconds)
-    @Indexed(expireAfterSeconds = 86400)
-    private Instant expireAt;
-
-    public JobSearchCache() {}
-
+    // TTL index - expire after 1 hour
+    @Indexed(expireAfterSeconds = 3600)
+    private Instant expiresAt;
+    
+    public JobSearchCache() {
+        this.cachedAt = Instant.now();
+        this.expiresAt = Instant.now();
+    }
+    
     public JobSearchCache(String query, String resultJson) {
         this.query = query;
         this.resultJson = resultJson;
-        this.createdAt = Instant.now();
-        this.expireAt = Instant.now().plusSeconds(86400);
+        this.cachedAt = Instant.now();
+        this.expiresAt = Instant.now();
     }
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
-    
-    public String getQuery() { return query; }
-    public void setQuery(String query) { this.query = query; }
-    
-    public String getResultJson() { return resultJson; }
-    public void setResultJson(String resultJson) { this.resultJson = resultJson; }
-    
-    public Instant getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
-    
-    public Instant getExpireAt() { return expireAt; }
-    public void setExpireAt(Instant expireAt) { this.expireAt = expireAt; }
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getQuery() {
+        return query;
+    }
+
+    public void setQuery(String query) {
+        this.query = query;
+    }
+
+    public String getResultJson() {
+        return resultJson;
+    }
+
+    public void setResultJson(String resultJson) {
+        this.resultJson = resultJson;
+    }
+
+    public Instant getCachedAt() {
+        return cachedAt;
+    }
+
+    public void setCachedAt(Instant cachedAt) {
+        this.cachedAt = cachedAt;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(Instant expiresAt) {
+        this.expiresAt = expiresAt;
+    }
 }

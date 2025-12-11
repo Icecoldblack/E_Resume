@@ -104,13 +104,6 @@
             <artifactId>commons-logging</artifactId>
             <version>1.2</version>
         </dependency>
-        
-        <!-- Lombok for reducing boilerplate code -->
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
-        </dependency>
 
         <!-- JWT token parsing -->
         <dependency>

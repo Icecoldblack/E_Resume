@@ -113,8 +113,14 @@ const OnboardingPage: React.FC = () => {
       }
       
       try {
+        const token = localStorage.getItem('auth_token');
         const response = await fetch(
-          `${API_BASE_URL}/api/extension/profile?email=${encodeURIComponent(user.email)}`
+          'http://localhost:8080/api/extension/profile',
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
         );
         
         if (response.ok) {
@@ -201,9 +207,13 @@ const OnboardingPage: React.FC = () => {
     setError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/extension/profile`, {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('http://localhost:8080/api/extension/profile', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           ...formData,
           email: user?.email,
