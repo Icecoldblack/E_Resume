@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class JobApplicationDocument {
     @Id
     private String id;
+    private String userEmail;
     private String jobTitle;
     private String companyName;
     private String jobUrl;
@@ -24,6 +25,14 @@ public class JobApplicationDocument {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public String getUserEmail() {
+        return userEmail;
+    }
+
+    public void setUserEmail(String userEmail) {
+        this.userEmail = userEmail;
     }
 
     public String getJobTitle() {

@@ -21,10 +21,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.easepath.backend.dto.ResumeDto;
 import com.easepath.backend.model.ResumeDocument;
+import com.easepath.backend.model.User;
 import com.easepath.backend.repository.ResumeRepository;
 import com.easepath.backend.repository.UserProfileRepository;
 import com.easepath.backend.service.ResumeService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -46,7 +48,11 @@ public class ResumeController {
     }
 
     @PostMapping
-    public ResponseEntity<ResumeDto> createResume(@Valid @RequestBody ResumeDto resumeDto) {
+    public ResponseEntity<ResumeDto> createResume(@Valid @RequestBody ResumeDto resumeDto, HttpServletRequest request) {
+        User currentUser = (User) request.getAttribute("currentUser");
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
         return ResponseEntity.ok(resumeService.createResume(resumeDto));
     }
 
@@ -63,10 +69,16 @@ public class ResumeController {
     public ResponseEntity<Map<String, Object>> uploadResume(
             @RequestParam(value = "file") MultipartFile file,
             @RequestParam(value = "userEmail", required = false) String userEmail,
-            @RequestParam(value = "email", required = false) String email) {
+            @RequestParam(value = "email", required = false) String email,
+            HttpServletRequest request) {
 
-        // Support both parameter names
-        String actualEmail = userEmail != null ? userEmail : email;
+        User currentUser = (User) request.getAttribute("currentUser");
+        if (currentUser == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+
+        // Use authenticated user's email instead of request parameters
+        String actualEmail = currentUser.getEmail();
         
         log.info("Uploading resume for user: {}, file: {}", actualEmail, file.getOriginalFilename());
 
@@ -136,8 +148,17 @@ public class ResumeController {
      * Get the user's current resume info by path variable.
      */
     @GetMapping("/{email}")
-    public ResponseEntity<Map<String, Object>> getResumeByPath(@org.springframework.web.bind.annotation.PathVariable String email) {
-        return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(email)
+        public ResponseEntity<Map<String, Object>> getResumeByPath(
+            @org.springframework.web.bind.annotation.PathVariable("email") String email,
+            HttpServletRequest request) {
+        User currentUser = (User) request.getAttribute("currentUser");
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        // Always use authenticated user's email
+        String userEmail = currentUser.getEmail();
+        return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(userEmail)
                 .map(resume -> {
                     Map<String, Object> response = new HashMap<>();
                     response.put("fileName", resume.getFileName());
@@ -153,8 +174,16 @@ public class ResumeController {
      * Get the user's current resume info.
      */
     @GetMapping
-    public ResponseEntity<Map<String, Object>> getResume(@RequestParam("email") String email) {
-        return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(email)
+        public ResponseEntity<Map<String, Object>> getResume(
+            @RequestParam(value = "email", required = false) String email,
+            HttpServletRequest request) {
+        User currentUser = (User) request.getAttribute("currentUser");
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        String userEmail = currentUser.getEmail();
+        return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(userEmail)
                 .map(resume -> {
                     Map<String, Object> response = new HashMap<>();
                     response.put("fileName", resume.getFileName());

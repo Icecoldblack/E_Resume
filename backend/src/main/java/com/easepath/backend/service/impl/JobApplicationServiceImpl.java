@@ -161,7 +161,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                 LOGGER.warn("No job links found on the provided URL: {}", jobBoardUrl);
                 result.getMatches().add(new JobMatchResult(jobBoardUrl, "N/A", 
                     MatchStatus.ERROR, "No job links found on this page. Check the URL or the site structure.", 0.0));
-                saveApplicationAttempt(jobBoardUrl, "N/A", MatchStatus.ERROR.name(), 0.0, "No job links found.");
+                saveApplicationAttempt(request.getUserEmail(), jobBoardUrl, "N/A", MatchStatus.ERROR.name(), 0.0, "No job links found.");
             }
 
             // Limit the scope of processing to avoid scanning the "whole website"
@@ -195,7 +195,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                     result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
                         MatchStatus.SKIPPED_LOW_SCORE, scoreResult.reasoning(), scoreResult.score()));
                     result.setSkippedLowScore(result.getSkippedLowScore() + 1);
-                    saveApplicationAttempt(jobUrl, jobSnippet, MatchStatus.SKIPPED_LOW_SCORE.name(), scoreResult.score(), scoreResult.reasoning());
+                    saveApplicationAttempt(request.getUserEmail(), jobUrl, jobSnippet, MatchStatus.SKIPPED_LOW_SCORE.name(), scoreResult.score(), scoreResult.reasoning());
                     continue;
                 }
 
@@ -205,7 +205,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                     result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
                         MatchStatus.SKIPPED_PROMPT, "Writing prompt detected; emailed user", scoreResult.score()));
                     result.setSkippedPrompts(result.getSkippedPrompts() + 1);
-                    saveApplicationAttempt(jobUrl, jobSnippet, MatchStatus.SKIPPED_PROMPT.name(), scoreResult.score(), "Writing prompt detected; emailed user");
+                    saveApplicationAttempt(request.getUserEmail(), jobUrl, jobSnippet, MatchStatus.SKIPPED_PROMPT.name(), scoreResult.score(), "Writing prompt detected; emailed user");
                 } else {
                     // Add to candidates list instead of applying immediately
                     candidates.add(new JobMatchResult(jobUrl, jobSnippet,
@@ -224,7 +224,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                 
                 LOGGER.info("Selected top candidate: {} (Score: {})", candidate.getTitle(), candidate.getScore());
                 result.getMatches().add(candidate);
-                saveApplicationAttempt(candidate.getJobUrl(), candidate.getTitle(), MatchStatus.PENDING.name(), candidate.getScore(), candidate.getReason());
+                saveApplicationAttempt(request.getUserEmail(), candidate.getJobUrl(), candidate.getTitle(), MatchStatus.PENDING.name(), candidate.getScore(), candidate.getReason());
                 appliedCount++;
             }
             
@@ -233,25 +233,26 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             LOGGER.error("HTTP error fetching job board: status={} url={}", e.getStatusCode(), e.getUrl());
             result.getMatches().add(new JobMatchResult(jobBoardUrl, jobTitle,
                 MatchStatus.ERROR, "HTTP error fetching URL (" + e.getStatusCode() + "): " + e.getUrl(), 0.0));
-            saveApplicationAttempt(jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0, "HTTP error: " + e.getStatusCode());
+            saveApplicationAttempt(request.getUserEmail(), jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0, "HTTP error: " + e.getStatusCode());
         } catch (IOException e) {
             LOGGER.error("Failed to scrape job board: {}", e.getMessage());
             result.getMatches().add(new JobMatchResult(jobBoardUrl, jobTitle,
                 MatchStatus.ERROR, "Failed to scrape job board: " + e.getMessage(), 0.0));
-            saveApplicationAttempt(jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0, "Failed to scrape: " + e.getMessage());
+            saveApplicationAttempt(request.getUserEmail(), jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0, "Failed to scrape: " + e.getMessage());
         }
 
         return result;
     }
 
     @Override
-    public java.util.List<JobApplicationDocument> getApplicationHistory() {
-        return jobApplicationRepository.findAll();
+    public java.util.List<JobApplicationDocument> getApplicationHistory(String userEmail) {
+        return jobApplicationRepository.findByUserEmail(userEmail);
     }
 
-    private void saveApplicationAttempt(String jobUrl, String jobTitle, String status, double score, String reason) {
+    private void saveApplicationAttempt(String userEmail, String jobUrl, String jobTitle, String status, double score, String reason) {
         try {
             JobApplicationDocument doc = new JobApplicationDocument();
+            doc.setUserEmail(userEmail);
             doc.setJobUrl(jobUrl);
             doc.setJobTitle(jobTitle);
             doc.setStatus(status);

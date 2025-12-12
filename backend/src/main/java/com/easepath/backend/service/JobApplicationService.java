@@ -11,5 +11,5 @@ import com.easepath.backend.model.JobApplicationDocument;
 @Service
 public interface JobApplicationService {
     JobApplicationResult applyToJobs(JobApplicationRequest request);
-    List<JobApplicationDocument> getApplicationHistory();
+    List<JobApplicationDocument> getApplicationHistory(String userEmail);
 }

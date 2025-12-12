@@ -50,9 +50,15 @@ const ResumePage: React.FC = () => {
   const fetchCurrentResume = async () => {
     try {
       const userEmail = user?.email || localStorage.getItem('easepath_user_email');
+      const token = localStorage.getItem('auth_token');
       if (!userEmail) return;
+      if (!token) return;
       
-      const response = await fetch(`${API_BASE_URL}/api/resume/${encodeURIComponent(userEmail)}`);
+      const response = await fetch(`${API_BASE_URL}/api/resume/${encodeURIComponent(userEmail)}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         if (data && data.fileName) {
@@ -75,8 +81,14 @@ const ResumePage: React.FC = () => {
 
     try {
       const userEmail = user?.email || localStorage.getItem('easepath_user_email');
+      const token = localStorage.getItem('auth_token');
       if (!userEmail) {
         setResumeMessage({ type: 'error', text: 'User not logged in' });
+        setUploadingResume(false);
+        return;
+      }
+      if (!token) {
+        setResumeMessage({ type: 'error', text: 'Missing auth token' });
         setUploadingResume(false);
         return;
       }
@@ -87,6 +99,9 @@ const ResumePage: React.FC = () => {
 
       const response = await fetch(`${API_BASE_URL}/api/resume/upload`, {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
       });
 

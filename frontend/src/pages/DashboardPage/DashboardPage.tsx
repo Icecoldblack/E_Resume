@@ -44,8 +44,12 @@ const DashboardPage: React.FC = () => {
   useEffect(() => {
     const fetchApplications = async () => {
       try {
-        // Fetch from the real backend API
-        const response = await fetch(`${API_BASE_URL}/api/apply/history`);
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch(`${API_BASE_URL}/api/apply/history`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         if (!response.ok) throw new Error('Failed to fetch');
         const data = await response.json();
         

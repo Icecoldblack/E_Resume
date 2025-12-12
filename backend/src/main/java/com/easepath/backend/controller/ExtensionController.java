@@ -23,11 +23,14 @@ import com.easepath.backend.dto.AutofillResponse;
 import com.easepath.backend.dto.UserProfileDto;
 import com.easepath.backend.model.LearnedAnswerDocument;
 import com.easepath.backend.model.ResumeDocument;
+import com.easepath.backend.model.User;
 import com.easepath.backend.model.UserProfileDocument;
 import com.easepath.backend.repository.ResumeRepository;
 import com.easepath.backend.repository.UserProfileRepository;
 import com.easepath.backend.service.AnswerLearningService;
 import com.easepath.backend.service.FormMappingService;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * API endpoints for the browser extension.
@@ -54,26 +57,36 @@ public class ExtensionController {
         this.formMappingService = formMappingService;
         this.answerLearningService = answerLearningService;
     }
+    
+    // Helper method to extract authenticated user
+    private User getCurrentUser(HttpServletRequest request) {
+        return (User) request.getAttribute("currentUser");
+    }
 
     /**
      * Main autofill endpoint - analyzes form fields and returns values to fill.
      * Uses resume data + user profile + learned answers.
      */
     @PostMapping("/autofill")
-    public ResponseEntity<AutofillResponse> autofill(@RequestBody AutofillRequest request) {
-        log.info("Autofill request for URL: {} with {} fields", request.getUrl(), 
-            request.getFormFields() != null ? request.getFormFields().size() : 0);
+    public ResponseEntity<AutofillResponse> autofill(@RequestBody AutofillRequest request, HttpServletRequest httpRequest) {
+        User currentUser = getCurrentUser(httpRequest);
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        log.info("Autofill request for URL: {} with {} fields from user: {}", request.getUrl(), 
+            request.getFormFields() != null ? request.getFormFields().size() : 0, currentUser.getEmail());
         
         // 1. Find user profile
-        UserProfileDocument profile = userProfileRepository.findByEmail(request.getUserEmail())
+        UserProfileDocument profile = userProfileRepository.findByEmail(currentUser.getEmail())
             .orElse(null);
         
         // 2. Find user's resume
-        ResumeDocument resume = resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(request.getUserEmail())
+        ResumeDocument resume = resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(currentUser.getEmail())
             .orElse(null);
         
         if (profile == null && resume == null) {
-            log.warn("No profile or resume found for user: {}", request.getUserEmail());
+            log.warn("No profile or resume found for user: {}", currentUser.getEmail());
             AutofillResponse response = new AutofillResponse();
             response.setMessage("Please upload your resume and set up your profile in the EasePath dashboard first.");
             response.setMapping(Map.of());
@@ -140,10 +153,15 @@ public class ExtensionController {
      * Returns base64-encoded file data along with filename and content type.
      */
     @GetMapping("/resume-file")
-    public ResponseEntity<Map<String, Object>> getResumeFile(@RequestParam(value = "email") String email) {
-        log.info("Fetching resume file for extension upload, user: {}", email);
+    public ResponseEntity<Map<String, Object>> getResumeFile(HttpServletRequest httpRequest) {
+        User currentUser = getCurrentUser(httpRequest);
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
         
-        return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(email)
+        log.info("Fetching resume file for extension upload, user: {}", currentUser.getEmail());
+        
+        return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(currentUser.getEmail())
             .map(resume -> {
                 Map<String, Object> response = new HashMap<>();
                 response.put("fileName", resume.getFileName());
@@ -153,7 +171,7 @@ public class ExtensionController {
                 return ResponseEntity.ok(response);
             })
             .orElseGet(() -> {
-                log.warn("No resume found for user: {}", email);
+                log.warn("No resume found for user: {}", currentUser.getEmail());
                 return ResponseEntity.notFound().build();
             });
     }
@@ -175,8 +193,13 @@ public class ExtensionController {
      * Get user profile for the extension.
      */
     @GetMapping("/profile")
-    public ResponseEntity<UserProfileDto> getProfile(@RequestParam(value = "email") String email) {
-        return userProfileRepository.findByEmail(email)
+    public ResponseEntity<UserProfileDto> getProfile(HttpServletRequest httpRequest) {
+        User currentUser = getCurrentUser(httpRequest);
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        return userProfileRepository.findByEmail(currentUser.getEmail())
             .map(this::toDto)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
@@ -186,17 +209,22 @@ public class ExtensionController {
      * Save/update user profile from extension or dashboard.
      */
     @PutMapping("/profile")
-    public ResponseEntity<UserProfileDto> saveProfile(@RequestBody UserProfileDto dto) {
-        log.info("Saving profile for user: {}", dto.getEmail());
+    public ResponseEntity<UserProfileDto> saveProfile(@RequestBody UserProfileDto dto, HttpServletRequest httpRequest) {
+        User currentUser = getCurrentUser(httpRequest);
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
         
-        UserProfileDocument doc = userProfileRepository.findByEmail(dto.getEmail())
+        log.info("Saving profile for user: {}", currentUser.getEmail());
+        
+        UserProfileDocument doc = userProfileRepository.findByEmail(currentUser.getEmail())
             .orElseGet(UserProfileDocument::new);
         
         // Update fields
         doc.setGoogleId(dto.getGoogleId());
         doc.setFirstName(dto.getFirstName());
         doc.setLastName(dto.getLastName());
-        doc.setEmail(dto.getEmail());
+        doc.setEmail(currentUser.getEmail());
         doc.setPhone(dto.getPhone());
         doc.setLinkedInUrl(dto.getLinkedInUrl());
         doc.setGithubUrl(dto.getGithubUrl());
@@ -229,7 +257,7 @@ public class ExtensionController {
         doc.setUpdatedAt(Instant.now());
         
         UserProfileDocument saved = userProfileRepository.save(doc);
-        log.info("Profile saved successfully for user: {}", dto.getEmail());
+        log.info("Profile saved successfully for user: {}", currentUser.getEmail());
         return ResponseEntity.ok(toDto(saved));
     }
 
@@ -279,12 +307,17 @@ public class ExtensionController {
      * The extension calls this when the user fills in a complex question.
      */
     @PostMapping("/learn-answer")
-    public ResponseEntity<LearnedAnswerDocument> learnAnswer(@RequestBody LearnAnswerRequest request) {
+    public ResponseEntity<LearnedAnswerDocument> learnAnswer(@RequestBody LearnAnswerRequest request, HttpServletRequest httpRequest) {
+        User currentUser = getCurrentUser(httpRequest);
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
+        
         log.info("Learning answer for user: {}, question: {}", 
-            request.getUserEmail(), request.getQuestion());
+            currentUser.getEmail(), request.getQuestion());
         
         LearnedAnswerDocument learned = answerLearningService.learnAnswer(
-            request.getUserEmail(),
+            currentUser.getEmail(),
             request.getQuestion(),
             request.getAnswer(),
             request.getPlatform(),
@@ -299,10 +332,15 @@ public class ExtensionController {
      */
     @GetMapping("/suggest-answer")
     public ResponseEntity<Map<String, Object>> suggestAnswer(
-            @RequestParam(value = "userEmail") String userEmail,
-            @RequestParam(value = "question") String question) {
+            @RequestParam(value = "question") String question,
+            HttpServletRequest httpRequest) {
         
-        Optional<LearnedAnswerDocument> answer = answerLearningService.findBestAnswer(userEmail, question);
+        User currentUser = getCurrentUser(httpRequest);
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        Optional<LearnedAnswerDocument> answer = answerLearningService.findBestAnswer(currentUser.getEmail(), question);
         
         Map<String, Object> response = new HashMap<>();
         if (answer.isPresent()) {
@@ -343,8 +381,13 @@ public class ExtensionController {
      * Get all learned answers for a user (for viewing/managing in dashboard).
      */
     @GetMapping("/learned-answers")
-    public ResponseEntity<List<LearnedAnswerDocument>> getLearnedAnswers(@RequestParam(value = "userEmail") String userEmail) {
-        return ResponseEntity.ok(answerLearningService.getUserAnswers(userEmail));
+    public ResponseEntity<List<LearnedAnswerDocument>> getLearnedAnswers(HttpServletRequest httpRequest) {
+        User currentUser = getCurrentUser(httpRequest);
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        return ResponseEntity.ok(answerLearningService.getUserAnswers(currentUser.getEmail()));
     }
 
     // ============== REQUEST DTOs ==============

@@ -8,7 +8,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.easepath.backend.model.User;
 import com.easepath.backend.service.JobSearchService;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/jobs")
@@ -34,7 +37,13 @@ public class JobController {
             @RequestParam(value = "date_posted", defaultValue = "all") String datePosted,
             @RequestParam(value = "remote_jobs_only", required = false) String remoteJobsOnly,
             @RequestParam(value = "employment_types", required = false) String employmentTypes,
-            @RequestParam(value = "job_requirements", required = false) String jobRequirements) {
+            @RequestParam(value = "job_requirements", required = false) String jobRequirements,
+            HttpServletRequest request) {
+        
+        User currentUser = (User) request.getAttribute("currentUser");
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
         
         String result = jobSearchService.searchJobs(query, numPages, datePosted, remoteJobsOnly, employmentTypes, jobRequirements);
         return ResponseEntity.ok(result);
