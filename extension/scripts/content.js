@@ -10,21 +10,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         performSmartAutofill(request.autoSubmit || false, sendResponse);
         return true; // Keep channel open for async response
     }
-    
+
     if (request.action === "capture_answers") {
         console.log("EasePath: Capturing user answers for learning...");
         captureAndLearnAnswers();
         sendResponse({ status: 'captured' });
         return true;
     }
-    
+
     if (request.action === "auto_submit") {
         console.log("EasePath: Auto-submit requested...");
         const submitted = autoSubmitForm();
         sendResponse({ status: submitted ? 'success' : 'error', submitted: submitted });
         return true;
     }
-    
+
     if (request.action === "get_page_info") {
         const pageInfo = analyzePageContent();
         const formFields = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]), textarea, select');
@@ -34,48 +34,51 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
         return true;
     }
-    
+
     if (request.action === "get_user_from_page") {
-        // Try to get user info from localStorage (when on EasePath site)
+        // Try to get user info AND auth token from localStorage (when on EasePath site)
         try {
+            // Get auth token (needed for API calls)
+            const authToken = localStorage.getItem('auth_token');
+
             // Check for 'user' key first (used by AuthContext)
             const userStr = localStorage.getItem('user');
             if (userStr) {
                 const user = JSON.parse(userStr);
                 if (user.email) {
-                    sendResponse({ email: user.email, name: user.name });
+                    sendResponse({ email: user.email, name: user.name, authToken: authToken });
                     return true;
                 }
             }
-            
+
             // Also try 'easepath_user' as fallback
             const easepathUserStr = localStorage.getItem('easepath_user');
             if (easepathUserStr) {
                 const user = JSON.parse(easepathUserStr);
-                sendResponse({ email: user.email, name: user.name });
+                sendResponse({ email: user.email, name: user.name, authToken: authToken });
                 return true;
             }
-            
+
             // Try easepath_user_email (simple key)
             const email = localStorage.getItem('easepath_user_email');
             if (email) {
-                sendResponse({ email: email });
+                sendResponse({ email: email, authToken: authToken });
                 return true;
             }
-            
+
             // Also try sessionStorage or other common patterns
             const authStr = localStorage.getItem('auth') || sessionStorage.getItem('auth');
             if (authStr) {
                 const auth = JSON.parse(authStr);
                 if (auth.user && auth.user.email) {
-                    sendResponse({ email: auth.user.email });
+                    sendResponse({ email: auth.user.email, authToken: authToken });
                     return true;
                 }
             }
         } catch (e) {
             console.log('EasePath: Could not get user from page storage');
         }
-        sendResponse({ email: null });
+        sendResponse({ email: null, authToken: null });
         return true;
     }
 });
@@ -87,39 +90,39 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
     try {
         // Show overlay notification
         showProcessingOverlay('🔍 Scanning application form...');
-        
+
         // Get stored profile first - we need this to proceed
         const userProfile = await getStoredUserProfile();
-        
+
         if (!userProfile) {
             hideOverlay();
-            sendResponse({ 
-                status: 'error', 
+            sendResponse({
+                status: 'error',
                 error: 'Please connect your EasePath account first. Click the extension icon and sync.',
-                needsLogin: true 
+                needsLogin: true
             });
             return;
         }
-        
+
         console.log("EasePath: ========== STARTING FULL AUTOFILL ==========");
         console.log("EasePath: Profile:", userProfile.email);
-        
+
         let totalFilled = 0;
         let totalClicked = 0;
         let resumeUploaded = false;
         let essayCount = 0;
         let pagesProcessed = 0;
         const maxPages = 10; // Safety limit
-        
+
         // MAIN LOOP: Process current page, then look for "Next" buttons
         while (pagesProcessed < maxPages) {
             pagesProcessed++;
             console.log("EasePath: === Processing Page", pagesProcessed, "===");
             updateOverlay(`Processing page ${pagesProcessed}...`);
-            
+
             // Wait for page to be ready
             await sleep(500);
-            
+
             // STEP 1: Upload resume if file inputs exist
             if (!resumeUploaded) {
                 updateOverlay('Looking for resume upload...');
@@ -129,31 +132,31 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
                     totalFilled++;
                 }
             }
-            
+
             // STEP 2: Fill ALL text inputs, emails, phones, dates, etc.
             updateOverlay('Filling text fields...');
             const textFilled = await fillAllTextFields(userProfile);
             totalFilled += textFilled;
             console.log("EasePath: Filled", textFilled, "text fields");
-            
+
             // STEP 3: Fill ALL dropdowns
             updateOverlay('Filling dropdowns...');
             const dropdownsFilled = await fillAllDropdowns(userProfile);
             totalFilled += dropdownsFilled;
             console.log("EasePath: Filled", dropdownsFilled, "dropdowns");
-            
+
             // STEP 4: Click ALL radio buttons and checkboxes
             updateOverlay('Selecting options...');
             const optionsClicked = await clickAllOptions(userProfile);
             totalClicked += optionsClicked;
             console.log("EasePath: Clicked", optionsClicked, "options");
-            
+
             // STEP 5: Handle custom button-style selectors (Greenhouse, Lever, etc.)
             updateOverlay('Handling custom controls...');
             const customClicked = await handleCustomControls(userProfile);
             totalClicked += customClicked;
             console.log("EasePath: Handled", customClicked, "custom controls");
-            
+
             // STEP 6: Count essay questions
             const essays = findEssayQuestions();
             essayCount = essays.length;
@@ -161,11 +164,11 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
                 highlightEssayQuestions(essays);
                 console.log("EasePath: Found", essayCount, "essay questions");
             }
-            
+
             // STEP 7: Look for "Continue" or "Next" button to proceed to next page
             await sleep(300);
             const nextButton = findNextButton();
-            
+
             if (nextButton && pagesProcessed < maxPages) {
                 console.log("EasePath: Found Next/Continue button, clicking...");
                 updateOverlay('Going to next page...');
@@ -177,29 +180,45 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
                 break;
             }
         }
-        
+
         console.log("EasePath: ========== AUTOFILL COMPLETE ==========");
         console.log("EasePath: Total filled:", totalFilled, "| Clicked:", totalClicked, "| Essays:", essayCount);
-        
+
         // AUTO-SUBMIT if enabled
         let autoSubmitted = false;
         if (autoSubmit && essayCount === 0) {
             updateOverlay('🚀 Submitting application...');
             await sleep(1000);
             autoSubmitted = await tryAutoSubmit();
-            
+
             if (autoSubmitted) {
                 showSuccessOverlay('✅ Application Submitted!');
+
+                // Record this application in the database
+                const jobInfo = extractJobInfoFromPage();
+                chrome.runtime.sendMessage({
+                    action: "record_application",
+                    jobTitle: jobInfo.title,
+                    companyName: jobInfo.company,
+                    jobUrl: window.location.href
+                }, (response) => {
+                    if (response && response.success) {
+                        console.log("EasePath: Application recorded:", response.applicationId);
+                    } else {
+                        console.log("EasePath: Could not record application:", response?.error);
+                    }
+                });
+
                 await sleep(2000);
             }
         } else if (essayCount > 0) {
             showEssayNotification(findEssayQuestions());
         }
-        
+
         hideOverlay();
-        
+
         const totalActions = totalFilled + totalClicked;
-        
+
         if (totalActions > 0) {
             sendResponse({
                 status: 'success',
@@ -207,15 +226,15 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
                 resumeUploaded: resumeUploaded,
                 essayQuestions: essayCount,
                 autoSubmitted: autoSubmitted,
-                message: autoSubmitted 
+                message: autoSubmitted
                     ? `✅ Application submitted! Completed ${totalActions} fields.`
-                    : essayCount > 0 
+                    : essayCount > 0
                         ? `Filled ${totalActions} fields. ${essayCount} essay question(s) highlighted - please complete them.`
                         : `✅ Filled ${totalActions} fields successfully!${resumeUploaded ? ' Resume uploaded!' : ''}`
             });
         } else {
-            sendResponse({ 
-                status: 'error', 
+            sendResponse({
+                status: 'error',
                 error: 'Could not fill any fields. Make sure you are on a job application page.',
             });
         }
@@ -235,7 +254,7 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
  */
 async function fillAllTextFields(profile) {
     let filled = 0;
-    
+
     // Get ALL possible text inputs
     const inputs = document.querySelectorAll(`
         input[type="text"],
@@ -248,17 +267,17 @@ async function fillAllTextFields(profile) {
         input:not([type]),
         textarea
     `);
-    
+
     for (const input of inputs) {
         // Skip hidden, disabled, readonly, or already filled
         if (!isElementVisible(input)) continue;
         if (input.disabled || input.readOnly) continue;
         if (input.value && input.value.trim() !== '') continue;
         if (input.type === 'hidden') continue;
-        
+
         // Skip essay textareas
         if (input.tagName === 'TEXTAREA' && isEssayTextarea(input)) continue;
-        
+
         const value = determineFieldValue(input, profile);
         if (value) {
             await fillTextInput(input, value);
@@ -266,7 +285,7 @@ async function fillAllTextFields(profile) {
             await sleep(50);
         }
     }
-    
+
     return filled;
 }
 
@@ -275,15 +294,15 @@ async function fillAllTextFields(profile) {
  */
 async function fillAllDropdowns(profile) {
     let filled = 0;
-    
+
     const selects = document.querySelectorAll('select');
-    
+
     for (const select of selects) {
         if (!isElementVisible(select)) continue;
         if (select.disabled) continue;
         if (select.selectedIndex > 0) continue; // Already has selection
         if (select.dataset.easepathFilled) continue;
-        
+
         const wasFilled = await fillSelectDropdown(select, profile);
         if (wasFilled) {
             select.dataset.easepathFilled = 'true';
@@ -291,7 +310,7 @@ async function fillAllDropdowns(profile) {
             await sleep(50);
         }
     }
-    
+
     return filled;
 }
 
@@ -300,32 +319,32 @@ async function fillAllDropdowns(profile) {
  */
 async function clickAllOptions(profile) {
     let clicked = 0;
-    
+
     // Handle radio groups by name
     const radioNames = new Set();
     document.querySelectorAll('input[type="radio"]').forEach(r => {
         if (r.name) radioNames.add(r.name);
     });
-    
+
     for (const name of radioNames) {
         const wasClicked = await handleRadioGroup(name, profile);
         if (wasClicked) clicked++;
     }
-    
+
     // Handle standalone checkboxes
     const checkboxes = document.querySelectorAll('input[type="checkbox"]');
     for (const cb of checkboxes) {
         if (!isElementVisible(cb)) continue;
         if (cb.checked) continue;
         if (cb.dataset.easepathFilled) continue;
-        
+
         const wasClicked = await handleCheckbox(cb, profile);
         if (wasClicked) {
             cb.dataset.easepathFilled = 'true';
             clicked++;
         }
     }
-    
+
     return clicked;
 }
 
@@ -334,7 +353,7 @@ async function clickAllOptions(profile) {
  */
 async function handleCustomControls(profile) {
     let clicked = 0;
-    
+
     // STRATEGY: Find all elements that LOOK like selectable options
     const potentialOptions = document.querySelectorAll(`
         [role="option"],
@@ -362,30 +381,30 @@ async function handleCustomControls(profile) {
         label:has(input[type="radio"]:not(:checked)),
         label:has(input[type="checkbox"]:not(:checked))
     `);
-    
+
     console.log("EasePath: Found", potentialOptions.length, "potential custom controls");
-    
+
     // Group by parent to understand context
     const processedContainers = new Set();
-    
+
     for (const option of potentialOptions) {
         if (!isElementVisible(option)) continue;
         if (isAlreadySelected(option)) continue;
         if (option.dataset.easepathProcessed) continue;
-        
+
         // Find question context
         const context = findQuestionContext(option);
         if (!context.question) continue;
         if (processedContainers.has(context.container)) continue;
-        
+
         const questionLower = context.question.toLowerCase();
         const optionText = getElementText(option).toLowerCase();
-        
+
         console.log("EasePath: Custom control -", questionLower.substring(0, 40), "| Option:", optionText.substring(0, 20));
-        
+
         // Determine if we should click this option
         const shouldClick = shouldSelectOption(questionLower, optionText, profile);
-        
+
         if (shouldClick) {
             option.scrollIntoView({ behavior: 'smooth', block: 'center' });
             await sleep(100);
@@ -398,7 +417,7 @@ async function handleCustomControls(profile) {
             await sleep(100);
         }
     }
-    
+
     return clicked;
 }
 
@@ -415,7 +434,7 @@ function determineFieldValue(input, profile) {
         input.getAttribute('aria-label') || '',
         input.getAttribute('autocomplete') || ''
     ].join(' ').toLowerCase();
-    
+
     // Name fields
     if (matchesAny(combined, ['first name', 'firstname', 'fname', 'given name', 'first-name']) && !combined.includes('last')) {
         return profile.firstName;
@@ -426,7 +445,7 @@ function determineFieldValue(input, profile) {
     if (matchesAny(combined, ['full name', 'your name', 'name']) && !combined.includes('first') && !combined.includes('last') && !combined.includes('company')) {
         return `${profile.firstName || ''} ${profile.lastName || ''}`.trim();
     }
-    
+
     // Contact
     if (matchesAny(combined, ['email', 'e-mail'])) {
         return profile.email;
@@ -434,7 +453,7 @@ function determineFieldValue(input, profile) {
     if (matchesAny(combined, ['phone', 'mobile', 'cell', 'telephone', 'tel'])) {
         return profile.phone;
     }
-    
+
     // Links
     if (combined.includes('linkedin')) {
         return profile.linkedInUrl;
@@ -445,7 +464,7 @@ function determineFieldValue(input, profile) {
     if (matchesAny(combined, ['portfolio', 'website', 'personal site', 'personal url'])) {
         return profile.portfolioUrl;
     }
-    
+
     // Address
     if (matchesAny(combined, ['street', 'address line 1', 'address1', 'address']) && !combined.includes('email') && !combined.includes('2')) {
         return profile.address;
@@ -462,7 +481,7 @@ function determineFieldValue(input, profile) {
     if (matchesAny(combined, ['country', 'nation'])) {
         return profile.country || 'United States';
     }
-    
+
     // Education
     if (matchesAny(combined, ['school', 'university', 'college', 'institution', 'alma mater'])) {
         return profile.university;
@@ -479,7 +498,7 @@ function determineFieldValue(input, profile) {
     if (matchesAny(combined, ['gpa', 'grade point'])) {
         return profile.gpa;
     }
-    
+
     // Work experience
     if (matchesAny(combined, ['years of experience', 'years experience', 'experience years', 'total experience'])) {
         return profile.yearsOfExperience;
@@ -490,12 +509,12 @@ function determineFieldValue(input, profile) {
     if (matchesAny(combined, ['current title', 'job title', 'current position', 'current role'])) {
         return profile.currentTitle || profile.desiredJobTitle;
     }
-    
+
     // Compensation
     if (matchesAny(combined, ['salary', 'compensation', 'pay', 'expected salary', 'desired salary'])) {
         return profile.desiredSalary;
     }
-    
+
     // Start date
     if (matchesAny(combined, ['start date', 'available', 'earliest start', 'when can you start', 'availability date'])) {
         if (input.type === 'date') {
@@ -506,17 +525,17 @@ function determineFieldValue(input, profile) {
         }
         return profile.availableStartDate || 'Immediately';
     }
-    
+
     // Location preferences
     if (matchesAny(combined, ['preferred location', 'desired location', 'location preference'])) {
         return profile.preferredLocations || profile.city;
     }
-    
+
     // How did you hear
     if (matchesAny(combined, ['how did you hear', 'how did you find', 'source', 'referral'])) {
         return 'LinkedIn';
     }
-    
+
     return null;
 }
 
@@ -526,38 +545,38 @@ function determineFieldValue(input, profile) {
 async function fillSelectDropdown(select, profile) {
     const label = findLabelForInput(select);
     const combined = [label, select.name, select.id].join(' ').toLowerCase();
-    
+
     // First check if it's a Yes/No question
     const yesNoAnswer = determineYesNoAnswer(combined, profile);
     if (yesNoAnswer) {
         return selectOptionByText(select, yesNoAnswer);
     }
-    
+
     // Employment type
     if (matchesAny(combined, ['employment type', 'job type', 'work type', 'position type', 'contract type', 'schedule'])) {
         return selectOptionByText(select, ['full-time', 'full time', 'fulltime', 'permanent', 'regular']);
     }
-    
+
     // Work arrangement
     if (matchesAny(combined, ['work arrangement', 'work location', 'remote', 'hybrid', 'workplace', 'work model'])) {
         return selectOptionByText(select, ['remote', 'work from home', 'hybrid', 'flexible']);
     }
-    
+
     // How did you hear
     if (matchesAny(combined, ['how did you hear', 'source', 'referral', 'how did you find'])) {
         return selectOptionByText(select, ['linkedin', 'job board', 'online', 'internet', 'website', 'other']);
     }
-    
+
     // Country
     if (matchesAny(combined, ['country'])) {
         return selectOptionByText(select, [profile.country || 'united states', 'usa', 'us']);
     }
-    
+
     // State
     if (matchesAny(combined, ['state', 'province']) && !combined.includes('united')) {
         return selectOptionByText(select, [profile.state]);
     }
-    
+
     // Gender
     if (matchesAny(combined, ['gender'])) {
         if (profile.gender && profile.gender !== 'Prefer not to say') {
@@ -565,7 +584,7 @@ async function fillSelectDropdown(select, profile) {
         }
         return selectOptionByText(select, ['prefer not', 'decline', 'not specified']);
     }
-    
+
     // Ethnicity
     if (matchesAny(combined, ['ethnicity', 'race'])) {
         if (profile.ethnicity && profile.ethnicity !== 'Prefer not to say') {
@@ -573,22 +592,22 @@ async function fillSelectDropdown(select, profile) {
         }
         return selectOptionByText(select, ['prefer not', 'decline', 'not specified']);
     }
-    
+
     // Veteran status
     if (matchesAny(combined, ['veteran'])) {
         return selectOptionByText(select, ['not a veteran', 'no', 'prefer not', 'i am not']);
     }
-    
+
     // Disability
     if (matchesAny(combined, ['disability', 'disabled'])) {
         return selectOptionByText(select, ['prefer not', 'decline', 'not specified', 'no']);
     }
-    
+
     // Degree
     if (matchesAny(combined, ['degree', 'education level', 'highest education'])) {
         return selectOptionByText(select, [profile.highestDegree, 'bachelor', 'master', 'associate']);
     }
-    
+
     // Experience level
     if (matchesAny(combined, ['experience level', 'seniority', 'level'])) {
         const years = parseInt(profile.yearsOfExperience) || 0;
@@ -596,7 +615,7 @@ async function fillSelectDropdown(select, profile) {
         if (years < 5) return selectOptionByText(select, ['mid', 'intermediate', '2-5', '3-5']);
         return selectOptionByText(select, ['senior', 'experienced', '5+', 'lead']);
     }
-    
+
     return false;
 }
 
@@ -605,21 +624,21 @@ async function fillSelectDropdown(select, profile) {
  */
 function selectOptionByText(select, textOptions) {
     if (!Array.isArray(textOptions)) textOptions = [textOptions];
-    
+
     select.scrollIntoView({ behavior: 'smooth', block: 'center' });
     select.focus();
-    
+
     for (const searchText of textOptions) {
         if (!searchText) continue;
         const searchLower = searchText.toLowerCase();
-        
+
         for (const option of select.options) {
             const optText = option.text.toLowerCase();
             const optValue = option.value.toLowerCase();
-            
+
             if (optText === searchLower || optValue === searchLower ||
                 optText.includes(searchLower) || optValue.includes(searchLower)) {
-                
+
                 select.value = option.value;
                 select.dispatchEvent(new Event('change', { bubbles: true }));
                 select.dispatchEvent(new Event('input', { bubbles: true }));
@@ -629,7 +648,7 @@ function selectOptionByText(select, textOptions) {
             }
         }
     }
-    
+
     return false;
 }
 
@@ -640,18 +659,18 @@ async function handleRadioGroup(name, profile) {
     const radios = Array.from(document.querySelectorAll(`input[name="${name}"]`));
     if (radios.length === 0) return false;
     if (radios.some(r => r.checked)) return false; // Already answered
-    
+
     // Find question context
     const context = findQuestionContext(radios[0]);
     const questionLower = (context.question || name).toLowerCase();
-    
+
     console.log("EasePath: Radio group:", questionLower.substring(0, 50));
-    
+
     // Find the right answer
     for (const radio of radios) {
         const label = findLabelForInput(radio);
         const optionText = (label + ' ' + radio.value).toLowerCase();
-        
+
         if (shouldSelectOption(questionLower, optionText, profile)) {
             const labelEl = document.querySelector(`label[for="${radio.id}"]`) || radio.closest('label');
             radio.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -662,7 +681,7 @@ async function handleRadioGroup(name, profile) {
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -672,12 +691,12 @@ async function handleRadioGroup(name, profile) {
 async function handleCheckbox(checkbox, profile) {
     const label = findLabelForInput(checkbox);
     const combined = (label + ' ' + checkbox.name + ' ' + checkbox.id).toLowerCase();
-    
+
     // Skip terms/privacy checkboxes
     if (matchesAny(combined, ['terms', 'privacy', 'consent', 'agree', 'acknowledge'])) {
         return false;
     }
-    
+
     // Check based on question
     const answer = determineYesNoAnswer(combined, profile);
     if (answer === 'Yes') {
@@ -689,7 +708,7 @@ async function handleCheckbox(checkbox, profile) {
         console.log("EasePath: ✓ Checked:", label?.substring(0, 40));
         return true;
     }
-    
+
     return false;
 }
 
@@ -701,27 +720,27 @@ function shouldSelectOption(questionLower, optionText, profile) {
     if (matchesAny(questionLower, ['employment', 'job type', 'work type', 'position type', 'schedule', 'contract'])) {
         return matchesAny(optionText, ['full-time', 'full time', 'fulltime', 'permanent', 'regular', 'fte']);
     }
-    
+
     // WORK ARRANGEMENT - prefer remote
     if (matchesAny(questionLower, ['work arrangement', 'work location', 'remote', 'hybrid', 'workplace', 'work model', 'work preference'])) {
         return matchesAny(optionText, ['remote', 'work from home', 'wfh', 'virtual', 'telecommute']);
     }
-    
+
     // SHIFT - prefer day/first shift
     if (matchesAny(questionLower, ['shift', 'work shift', 'preferred shift'])) {
         return matchesAny(optionText, ['day', 'first', 'morning', '9', 'flexible', 'any']);
     }
-    
+
     // YES/NO questions
     if (optionText === 'yes' || optionText === 'no' || optionText === 'true' || optionText === 'false') {
         const answer = determineYesNoAnswer(questionLower, profile);
         if (answer) {
-            return optionText === answer.toLowerCase() || 
-                   (answer === 'Yes' && optionText === 'true') ||
-                   (answer === 'No' && optionText === 'false');
+            return optionText === answer.toLowerCase() ||
+                (answer === 'Yes' && optionText === 'true') ||
+                (answer === 'No' && optionText === 'false');
         }
     }
-    
+
     return false;
 }
 
@@ -732,30 +751,30 @@ function findQuestionContext(element) {
     let container = element.parentElement;
     let question = '';
     let depth = 0;
-    
+
     while (container && depth < 10) {
         // Look for question indicators
         const candidates = container.querySelectorAll('label, legend, h1, h2, h3, h4, h5, p, span, div');
-        
+
         for (const el of candidates) {
             if (el.contains(element)) continue; // Skip if it contains our target
-            
+
             const text = el.textContent?.trim() || '';
-            
+
             // Looks like a question
             if (text.length > 5 && text.length < 500 &&
                 (text.includes('?') ||
-                 /^(are|do|have|will|can|is|what|which|select|choose|please)/i.test(text) ||
-                 /required/i.test(el.className))) {
+                    /^(are|do|have|will|can|is|what|which|select|choose|please)/i.test(text) ||
+                    /required/i.test(el.className))) {
                 question = text;
                 return { question, container };
             }
         }
-        
+
         container = container.parentElement;
         depth++;
     }
-    
+
     return { question: '', container: null };
 }
 
@@ -774,11 +793,11 @@ function isAlreadySelected(element) {
         element.getAttribute('data-checked') === 'true') {
         return true;
     }
-    
+
     // Check for checked input inside
     const input = element.querySelector('input[type="radio"], input[type="checkbox"]');
     if (input && input.checked) return true;
-    
+
     return false;
 }
 
@@ -806,24 +825,24 @@ function findNextButton() {
         'a:contains("Next")',
         'a:contains("Continue")'
     ];
-    
+
     // Manual search since :contains isn't native
     const allButtons = document.querySelectorAll('button, input[type="submit"], a[href]');
-    
+
     for (const btn of allButtons) {
         if (!isElementVisible(btn)) continue;
-        
+
         const text = (btn.textContent || btn.value || '').toLowerCase();
         const testId = (btn.dataset.testid || '').toLowerCase();
-        
+
         // Look for next/continue but NOT submit/apply
         if ((text.includes('next') || text.includes('continue') || text.includes('proceed') ||
-             testId.includes('next') || testId.includes('continue')) &&
+            testId.includes('next') || testId.includes('continue')) &&
             !text.includes('submit') && !text.includes('apply') && !text.includes('finish')) {
             return btn;
         }
     }
-    
+
     return null;
 }
 
@@ -833,14 +852,14 @@ function findNextButton() {
 function findEssayQuestions() {
     const essays = [];
     const textareas = document.querySelectorAll('textarea');
-    
+
     for (const ta of textareas) {
         if (isEssayTextarea(ta)) {
             const label = findLabelForInput(ta);
             essays.push({ element: ta, label });
         }
     }
-    
+
     return essays;
 }
 
@@ -848,14 +867,106 @@ function findEssayQuestions() {
  * Try to upload resume to file inputs
  */
 async function tryUploadResume() {
-    // This would need the actual resume file from storage
-    // For now, just check if there are file inputs
+    // Find all file inputs on the page
     const fileInputs = document.querySelectorAll('input[type="file"]');
-    
-    // TODO: Implement actual file upload from stored resume
     console.log("EasePath: Found", fileInputs.length, "file upload fields");
-    
-    return false;
+
+    if (fileInputs.length === 0) {
+        console.log("EasePath: No file inputs found on page");
+        return false;
+    }
+
+    // Find resume-related file inputs
+    let resumeInput = null;
+    for (const input of fileInputs) {
+        const container = input.closest('div, section, fieldset, label');
+        const text = container ? container.textContent.toLowerCase() : '';
+        const name = (input.name || '').toLowerCase();
+        const id = (input.id || '').toLowerCase();
+        const accept = (input.accept || '').toLowerCase();
+
+        // Check if this looks like a resume upload
+        if (text.includes('resume') || text.includes('cv') ||
+            name.includes('resume') || name.includes('cv') ||
+            id.includes('resume') || id.includes('cv') ||
+            accept.includes('pdf') || accept.includes('doc')) {
+            resumeInput = input;
+            console.log("EasePath: Found resume input:", name || id || 'unnamed');
+            break;
+        }
+    }
+
+    // If no specific resume input found, use the first file input
+    if (!resumeInput && fileInputs.length > 0) {
+        resumeInput = fileInputs[0];
+        console.log("EasePath: Using first file input for resume");
+    }
+
+    if (!resumeInput) {
+        console.log("EasePath: No suitable file input found");
+        return false;
+    }
+
+    // Request resume file from background script
+    try {
+        const response = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ action: "get_resume_file" }, (response) => {
+                if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve(response);
+                }
+            });
+        });
+
+        if (!response || response.error) {
+            console.log("EasePath: Could not get resume:", response?.error || "No response");
+            return false;
+        }
+
+        if (!response.fileData) {
+            console.log("EasePath: No resume file data received");
+            return false;
+        }
+
+        console.log("EasePath: Got resume file:", response.fileName);
+
+        // Convert base64 to File object
+        const byteCharacters = atob(response.fileData);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: response.contentType || 'application/pdf' });
+        const file = new File([blob], response.fileName, { type: response.contentType || 'application/pdf' });
+
+        // Upload to file input using DataTransfer
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        resumeInput.files = dataTransfer.files;
+
+        // Trigger change events so the site knows a file was selected
+        resumeInput.dispatchEvent(new Event('change', { bubbles: true }));
+        resumeInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+        // Also try triggering React-specific events
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'files')?.set;
+        if (nativeInputValueSetter) {
+            nativeInputValueSetter.call(resumeInput, dataTransfer.files);
+            resumeInput.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+        }
+
+        // Highlight the input to show it was filled
+        highlightElement(resumeInput.parentElement || resumeInput);
+
+        console.log("EasePath: ✓ Resume uploaded successfully:", response.fileName);
+        return true;
+
+    } catch (error) {
+        console.error("EasePath: Error uploading resume:", error);
+        return false;
+    }
 }
 
 /**
@@ -873,19 +984,19 @@ async function tryAutoSubmit() {
         '[data-testid*="submit"]',
         '[data-testid*="apply"]'
     ];
-    
+
     const allButtons = document.querySelectorAll('button, input[type="submit"]');
-    
+
     for (const btn of allButtons) {
         if (!isElementVisible(btn)) continue;
-        
+
         const text = (btn.textContent || btn.value || '').toLowerCase();
         const testId = (btn.dataset.testid || '').toLowerCase();
-        
+
         if (text.includes('submit') || text.includes('apply now') || text.includes('send application') ||
             text.includes('complete application') || text.includes('finish') ||
             testId.includes('submit') || testId.includes('apply')) {
-            
+
             console.log("EasePath: Clicking submit button:", text.substring(0, 30));
             btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
             await sleep(500);
@@ -893,7 +1004,7 @@ async function tryAutoSubmit() {
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -918,13 +1029,13 @@ function sleep(ms) {
 async function fillInputField(input, profile) {
     const label = findLabelForInput(input);
     const combined = [label, input.name, input.id, input.placeholder].join(' ').toLowerCase();
-    
+
     console.log("EasePath: Checking input:", combined.substring(0, 60));
-    
+
     // Try to match to profile field
     const value = matchFieldToProfile(combined, profile);
     if (!value) return false;
-    
+
     return fillTextInput(input, value);
 }
 
@@ -934,21 +1045,21 @@ async function fillInputField(input, profile) {
 async function fillSelectField(select, profile) {
     const label = findLabelForInput(select);
     const combined = [label, select.name, select.id].join(' ').toLowerCase();
-    
+
     console.log("EasePath: Checking select:", combined.substring(0, 60));
-    
+
     // First check if it's a Yes/No question
     const yesNoAnswer = determineYesNoAnswer(combined, profile);
     if (yesNoAnswer) {
         return fillSelectElement(select, yesNoAnswer);
     }
-    
+
     // Try to match to profile field
     const value = matchFieldToProfile(combined, profile);
     if (value) {
         return fillSelectElement(select, value);
     }
-    
+
     // Handle special dropdown types
     return fillSpecialDropdown(select, combined, profile);
 }
@@ -959,12 +1070,12 @@ async function fillSelectField(select, profile) {
 async function fillRadioGroupByName(groupName, profile) {
     const radios = document.querySelectorAll(`input[name="${groupName}"]`);
     if (radios.length === 0) return false;
-    
+
     // Find the question text for this group
     const firstRadio = radios[0];
     const container = firstRadio.closest('fieldset, .question, .form-group, [role="group"], .field, div');
     let questionText = '';
-    
+
     if (container) {
         const legend = container.querySelector('legend, label, .question-text, h3, h4, p');
         if (legend) questionText = legend.textContent;
@@ -972,10 +1083,10 @@ async function fillRadioGroupByName(groupName, profile) {
     if (!questionText) {
         questionText = groupName;
     }
-    
+
     const combined = questionText.toLowerCase();
     console.log("EasePath: Checking radio group:", combined.substring(0, 60));
-    
+
     // First try employment type questions
     if (matchesAny(combined, ['employment type', 'job type', 'full time', 'part time', 'schedule', 'work type'])) {
         // Select full-time option
@@ -995,7 +1106,7 @@ async function fillRadioGroupByName(groupName, profile) {
             }
         }
     }
-    
+
     // Then try work arrangement questions
     if (matchesAny(combined, ['work arrangement', 'remote', 'hybrid', 'on-site', 'work location', 'work preference'])) {
         // Prefer remote, then hybrid
@@ -1031,7 +1142,7 @@ async function fillRadioGroupByName(groupName, profile) {
             }
         }
     }
-    
+
     // Try Yes/No questions
     const answer = determineYesNoAnswer(combined, profile);
     if (answer) {
@@ -1040,10 +1151,10 @@ async function fillRadioGroupByName(groupName, profile) {
             const radioLabel = findLabelForInput(radio).toLowerCase();
             const radioValue = radio.value.toLowerCase();
             const answerLower = answer.toLowerCase();
-            
+
             if (radioLabel === answerLower || radioValue === answerLower ||
                 radioLabel.includes(answerLower) || radioValue.includes(answerLower)) {
-                
+
                 if (!radio.checked) {
                     const labelEl = document.querySelector(`label[for="${radio.id}"]`) || radio.closest('label');
                     radio.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1056,7 +1167,7 @@ async function fillRadioGroupByName(groupName, profile) {
             }
         }
     }
-    
+
     return false;
 }
 
@@ -1066,12 +1177,12 @@ async function fillRadioGroupByName(groupName, profile) {
 async function fillCheckboxField(checkbox, profile) {
     const label = findLabelForInput(checkbox);
     const combined = [label, checkbox.name, checkbox.id].join(' ').toLowerCase();
-    
+
     // Skip checkboxes that are just "agree to terms" - let user handle those
     if (combined.includes('terms') || combined.includes('privacy') || combined.includes('consent')) {
         return false;
     }
-    
+
     const answer = determineYesNoAnswer(combined, profile);
     if (answer === 'Yes' && !checkbox.checked) {
         checkbox.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1081,7 +1192,7 @@ async function fillCheckboxField(checkbox, profile) {
         console.log("EasePath: ✓ Checked:", label?.substring(0, 40));
         return true;
     }
-    
+
     return false;
 }
 
@@ -1091,9 +1202,9 @@ async function fillCheckboxField(checkbox, profile) {
  */
 async function fillButtonStyleSelectors(profile) {
     let filled = 0;
-    
+
     console.log("EasePath: === SCANNING FOR CLICKABLE BUTTONS ===");
-    
+
     // STRATEGY 1: Find ALL clickable elements on the page that might be option buttons
     const allClickables = document.querySelectorAll(`
         button:not([type="submit"]):not([type="reset"]),
@@ -1119,78 +1230,78 @@ async function fillButtonStyleSelectors(profile) {
         li[role="option"],
         li[role="radio"]
     `);
-    
+
     console.log("EasePath: Found", allClickables.length, "potential clickable elements");
-    
+
     // Group elements by their parent container to understand question context
     const processedParents = new Set();
-    
+
     for (const clickable of allClickables) {
         if (!isElementVisible(clickable)) continue;
         if (clickable.dataset.easepathProcessed) continue;
-        
+
         // Find the question context - look up to 5 levels for a container
         let container = clickable.parentElement;
         let questionText = '';
         let depth = 0;
-        
+
         while (container && depth < 8) {
             // Skip if we already processed this container
             if (processedParents.has(container)) break;
-            
+
             // Look for question text in this container
             const possibleQuestionEls = container.querySelectorAll('label, legend, h1, h2, h3, h4, h5, p, span, div');
             for (const el of possibleQuestionEls) {
                 const text = el.textContent.trim();
                 // Question-like text usually ends with ? or has certain keywords
-                if (text.length > 10 && text.length < 300 && 
-                    (text.includes('?') || 
-                     text.toLowerCase().includes('select') ||
-                     text.toLowerCase().includes('choose') ||
-                     text.toLowerCase().includes('are you') ||
-                     text.toLowerCase().includes('do you') ||
-                     text.toLowerCase().includes('have you') ||
-                     text.toLowerCase().includes('will you') ||
-                     text.toLowerCase().includes('what') ||
-                     text.toLowerCase().includes('which') ||
-                     text.toLowerCase().includes('type') ||
-                     text.toLowerCase().includes('status'))) {
+                if (text.length > 10 && text.length < 300 &&
+                    (text.includes('?') ||
+                        text.toLowerCase().includes('select') ||
+                        text.toLowerCase().includes('choose') ||
+                        text.toLowerCase().includes('are you') ||
+                        text.toLowerCase().includes('do you') ||
+                        text.toLowerCase().includes('have you') ||
+                        text.toLowerCase().includes('will you') ||
+                        text.toLowerCase().includes('what') ||
+                        text.toLowerCase().includes('which') ||
+                        text.toLowerCase().includes('type') ||
+                        text.toLowerCase().includes('status'))) {
                     questionText = text;
                     break;
                 }
             }
-            
+
             if (questionText) break;
             container = container.parentElement;
             depth++;
         }
-        
+
         if (!questionText || !container) continue;
         if (processedParents.has(container)) continue;
-        
+
         const questionLower = questionText.toLowerCase();
         const clickableText = clickable.textContent.toLowerCase().trim();
         const clickableValue = (clickable.dataset.value || clickable.getAttribute('value') || clickable.getAttribute('aria-label') || '').toLowerCase();
         const combinedClickable = clickableText + ' ' + clickableValue;
-        
+
         console.log("EasePath: Analyzing -", questionLower.substring(0, 50), "| Option:", clickableText.substring(0, 20));
-        
+
         // Check if already selected
-        const isSelected = clickable.classList.contains('selected') || 
-                          clickable.classList.contains('active') ||
-                          clickable.classList.contains('checked') ||
-                          clickable.getAttribute('aria-checked') === 'true' ||
-                          clickable.getAttribute('aria-selected') === 'true' ||
-                          clickable.getAttribute('data-selected') === 'true' ||
-                          clickable.querySelector('input:checked');
-        
+        const isSelected = clickable.classList.contains('selected') ||
+            clickable.classList.contains('active') ||
+            clickable.classList.contains('checked') ||
+            clickable.getAttribute('aria-checked') === 'true' ||
+            clickable.getAttribute('aria-selected') === 'true' ||
+            clickable.getAttribute('data-selected') === 'true' ||
+            clickable.querySelector('input:checked');
+
         if (isSelected) {
             clickable.dataset.easepathProcessed = 'true';
             continue;
         }
-        
+
         let shouldClick = false;
-        
+
         // EMPLOYMENT TYPE
         if (matchesAny(questionLower, ['employment', 'job type', 'work type', 'position type', 'full time', 'part time', 'schedule', 'contract'])) {
             if (matchesAny(combinedClickable, ['full-time', 'full time', 'fulltime', 'permanent', 'regular', 'fte'])) {
@@ -1216,32 +1327,32 @@ async function fillButtonStyleSelectors(profile) {
                 }
             }
         }
-        
+
         if (shouldClick) {
             clickable.scrollIntoView({ behavior: 'smooth', block: 'center' });
             await sleep(150);
-            
+
             // Try multiple click methods for better compatibility
             await performRobustClick(clickable);
-            
+
             clickable.dataset.easepathProcessed = 'true';
             processedParents.add(container);
             highlightElement(clickable);
             filled++;
-            
+
             await sleep(100); // Small delay between clicks
         }
     }
-    
+
     // STRATEGY 2: Look for radio inputs directly and click their labels
     const radioInputs = document.querySelectorAll('input[type="radio"]:not(:checked)');
     for (const radio of radioInputs) {
         if (radio.dataset.easepathProcessed) continue;
-        
+
         const name = radio.name;
         const label = findLabelForInput(radio);
         const labelLower = label.toLowerCase();
-        
+
         // Find the question for this radio group
         let questionText = '';
         const fieldset = radio.closest('fieldset');
@@ -1256,9 +1367,9 @@ async function fillButtonStyleSelectors(profile) {
                 if (qEl && !qEl.contains(radio)) questionText = qEl.textContent.toLowerCase();
             }
         }
-        
+
         let shouldClick = false;
-        
+
         // Employment type
         if (matchesAny(questionText + ' ' + name, ['employment', 'job type', 'work type', 'full time', 'part time'])) {
             if (matchesAny(labelLower + ' ' + radio.value.toLowerCase(), ['full-time', 'full time', 'fulltime', 'permanent'])) {
@@ -1278,11 +1389,11 @@ async function fillButtonStyleSelectors(profile) {
                 shouldClick = true;
             }
         }
-        
+
         if (shouldClick) {
             radio.scrollIntoView({ behavior: 'smooth', block: 'center' });
             await sleep(100);
-            
+
             // Click the label if it exists, otherwise click radio directly
             const labelEl = document.querySelector(`label[for="${radio.id}"]`) || radio.closest('label');
             if (labelEl) {
@@ -1290,15 +1401,15 @@ async function fillButtonStyleSelectors(profile) {
             } else {
                 await performRobustClick(radio);
             }
-            
+
             radio.dataset.easepathProcessed = 'true';
             highlightElement(labelEl || radio.parentElement || radio);
             filled++;
-            
+
             await sleep(100);
         }
     }
-    
+
     console.log("EasePath: === BUTTON SCAN COMPLETE - Filled", filled, "===");
     return filled;
 }
@@ -1308,49 +1419,49 @@ async function fillButtonStyleSelectors(profile) {
  */
 async function performRobustClick(element) {
     if (!element) return;
-    
+
     try {
         // 1. Focus the element
         element.focus();
-        
+
         // 2. Dispatch mousedown
         element.dispatchEvent(new MouseEvent('mousedown', {
             bubbles: true,
             cancelable: true,
             view: window
         }));
-        
+
         await sleep(10);
-        
+
         // 3. Dispatch mouseup
         element.dispatchEvent(new MouseEvent('mouseup', {
             bubbles: true,
             cancelable: true,
             view: window
         }));
-        
+
         // 4. Native click
         element.click();
-        
+
         // 5. Dispatch click event
         element.dispatchEvent(new MouseEvent('click', {
             bubbles: true,
             cancelable: true,
             view: window
         }));
-        
+
         // 6. For radio/checkbox inputs inside, click them too
         const innerInput = element.querySelector('input[type="radio"], input[type="checkbox"]');
         if (innerInput && !innerInput.checked) {
             innerInput.click();
             innerInput.dispatchEvent(new Event('change', { bubbles: true }));
         }
-        
+
         // 7. Dispatch change event on element
         element.dispatchEvent(new Event('change', { bubbles: true }));
-        
+
         console.log("EasePath: Clicked element:", element.textContent?.substring(0, 30) || element.tagName);
-        
+
     } catch (e) {
         console.error("EasePath: Click error:", e);
     }
@@ -1370,7 +1481,7 @@ function matchFieldToProfile(combined, profile) {
     if (matchesAny(combined, ['full name', 'your name']) && !combined.includes('first') && !combined.includes('last')) {
         return [profile.firstName, profile.lastName].filter(Boolean).join(' ');
     }
-    
+
     // Contact
     if (matchesAny(combined, ['email', 'e-mail'])) {
         return profile.email;
@@ -1378,7 +1489,7 @@ function matchFieldToProfile(combined, profile) {
     if (matchesAny(combined, ['phone', 'mobile', 'cell', 'telephone'])) {
         return profile.phone;
     }
-    
+
     // Links
     if (combined.includes('linkedin')) {
         return profile.linkedInUrl;
@@ -1389,7 +1500,7 @@ function matchFieldToProfile(combined, profile) {
     if (matchesAny(combined, ['portfolio', 'website', 'personal site'])) {
         return profile.portfolioUrl;
     }
-    
+
     // Address
     if (matchesAny(combined, ['street', 'address line', 'address']) && !combined.includes('email')) {
         return profile.address;
@@ -1406,7 +1517,7 @@ function matchFieldToProfile(combined, profile) {
     if (matchesAny(combined, ['country'])) {
         return profile.country || 'United States';
     }
-    
+
     // Education
     if (matchesAny(combined, ['school', 'university', 'college', 'institution'])) {
         return profile.university;
@@ -1420,7 +1531,7 @@ function matchFieldToProfile(combined, profile) {
     if (matchesAny(combined, ['graduation', 'grad year'])) {
         return profile.graduationYear;
     }
-    
+
     // Work
     if (matchesAny(combined, ['years of experience', 'years experience'])) {
         return profile.yearsOfExperience;
@@ -1431,17 +1542,17 @@ function matchFieldToProfile(combined, profile) {
     if (matchesAny(combined, ['desired title', 'job title', 'position'])) {
         return profile.desiredJobTitle;
     }
-    
+
     // Start date
     if (matchesAny(combined, ['start date', 'available', 'earliest start', 'when can you'])) {
         return profile.availableStartDate || 'Immediately';
     }
-    
+
     // Location preferences  
     if (matchesAny(combined, ['preferred location', 'location preference'])) {
         return profile.preferredLocations || profile.city;
     }
-    
+
     return null;
 }
 
@@ -1452,29 +1563,29 @@ function fillSpecialDropdown(select, combined, profile) {
     // Employment type (Full-time, Part-time, etc.)
     if (matchesAny(combined, ['employment type', 'job type', 'work type', 'position type', 'full time', 'part time', 'schedule', 'work schedule', 'contract type'])) {
         // Default to full-time - try multiple variations
-        return fillSelectElement(select, 'full-time') || 
-               fillSelectElement(select, 'full time') || 
-               fillSelectElement(select, 'fulltime') ||
-               fillSelectElement(select, 'permanent') ||
-               fillSelectElement(select, 'regular');
+        return fillSelectElement(select, 'full-time') ||
+            fillSelectElement(select, 'full time') ||
+            fillSelectElement(select, 'fulltime') ||
+            fillSelectElement(select, 'permanent') ||
+            fillSelectElement(select, 'regular');
     }
-    
+
     // Work arrangement (Remote, Hybrid, On-site)
     if (matchesAny(combined, ['work arrangement', 'remote', 'hybrid', 'on-site', 'onsite', 'work location', 'work preference', 'work mode'])) {
-        return fillSelectElement(select, 'remote') || 
-               fillSelectElement(select, 'hybrid') ||
-               fillSelectElement(select, 'flexible');
+        return fillSelectElement(select, 'remote') ||
+            fillSelectElement(select, 'hybrid') ||
+            fillSelectElement(select, 'flexible');
     }
-    
+
     // How did you hear about us
     if (matchesAny(combined, ['how did you hear', 'source', 'referral', 'how did you find'])) {
-        return fillSelectElement(select, 'linkedin') || 
-               fillSelectElement(select, 'job board') ||
-               fillSelectElement(select, 'online') ||
-               fillSelectElement(select, 'internet') ||
-               fillSelectElement(select, 'website');
+        return fillSelectElement(select, 'linkedin') ||
+            fillSelectElement(select, 'job board') ||
+            fillSelectElement(select, 'online') ||
+            fillSelectElement(select, 'internet') ||
+            fillSelectElement(select, 'website');
     }
-    
+
     // Gender (use profile if set, otherwise skip)
     if (matchesAny(combined, ['gender', 'sex'])) {
         if (profile.gender && profile.gender !== 'Prefer not to say') {
@@ -1482,7 +1593,7 @@ function fillSpecialDropdown(select, combined, profile) {
         }
         return fillSelectElement(select, 'prefer not') || fillSelectElement(select, 'decline');
     }
-    
+
     // Ethnicity (use profile if set, otherwise skip)
     if (matchesAny(combined, ['ethnicity', 'race'])) {
         if (profile.ethnicity && profile.ethnicity !== 'Prefer not to say') {
@@ -1490,7 +1601,7 @@ function fillSpecialDropdown(select, combined, profile) {
         }
         return fillSelectElement(select, 'prefer not') || fillSelectElement(select, 'decline');
     }
-    
+
     // Veteran status
     if (matchesAny(combined, ['veteran'])) {
         if (profile.veteranStatus && profile.veteranStatus !== 'Prefer not to say') {
@@ -1498,7 +1609,7 @@ function fillSpecialDropdown(select, combined, profile) {
         }
         return fillSelectElement(select, 'not a veteran') || fillSelectElement(select, 'no') || fillSelectElement(select, 'prefer not');
     }
-    
+
     // Disability
     if (matchesAny(combined, ['disability', 'disabled'])) {
         if (profile.disabilityStatus && profile.disabilityStatus !== 'Prefer not to say') {
@@ -1506,22 +1617,22 @@ function fillSpecialDropdown(select, combined, profile) {
         }
         return fillSelectElement(select, 'prefer not') || fillSelectElement(select, 'decline');
     }
-    
+
     // Availability / Hours - default to full-time hours
     if (matchesAny(combined, ['hours per week', 'availability', 'available hours', 'hours available'])) {
-        return fillSelectElement(select, '40') || 
-               fillSelectElement(select, 'full') ||
-               fillSelectElement(select, 'anytime');
+        return fillSelectElement(select, '40') ||
+            fillSelectElement(select, 'full') ||
+            fillSelectElement(select, 'anytime');
     }
-    
+
     // Shift preference - default to day shift
     if (matchesAny(combined, ['shift', 'preferred shift', 'work shift'])) {
-        return fillSelectElement(select, 'day') || 
-               fillSelectElement(select, 'first') ||
-               fillSelectElement(select, 'morning') ||
-               fillSelectElement(select, 'flexible');
+        return fillSelectElement(select, 'day') ||
+            fillSelectElement(select, 'first') ||
+            fillSelectElement(select, 'morning') ||
+            fillSelectElement(select, 'flexible');
     }
-    
+
     return false;
 }
 
@@ -1531,14 +1642,14 @@ function fillSpecialDropdown(select, combined, profile) {
 function isEssayTextarea(textarea) {
     const label = findLabelForInput(textarea);
     const combined = [label, textarea.placeholder].join(' ').toLowerCase();
-    
+
     const essayKeywords = ['why', 'describe', 'explain', 'tell us', 'cover letter', 'motivation'];
     const notEssayKeywords = ['address', 'street', 'city', 'name'];
-    
+
     for (const kw of notEssayKeywords) {
         if (combined.includes(kw)) return false;
     }
-    
+
     return essayKeywords.some(kw => combined.includes(kw));
 }
 
@@ -1563,10 +1674,10 @@ async function getStoredUserProfile() {
  */
 function clientSideAutofill(fields, profile) {
     let filledCount = 0;
-    
+
     console.log("EasePath: Starting client-side autofill with profile:", profile?.email);
     console.log("EasePath: Processing", fields.length, "fields");
-    
+
     for (const field of fields) {
         // Get the combined text to match against
         const combined = [
@@ -1575,9 +1686,9 @@ function clientSideAutofill(fields, profile) {
             field.id || '',
             field.placeholder || ''
         ].join(' ').toLowerCase();
-        
+
         console.log("EasePath: Analyzing field:", field.type, "-", combined.substring(0, 60));
-        
+
         // Handle radio button groups (Yes/No questions)
         if (field.type === 'radio-group' && field.options) {
             const answer = determineYesNoAnswer(combined, profile);
@@ -1589,7 +1700,7 @@ function clientSideAutofill(fields, profile) {
             }
             continue;
         }
-        
+
         // Handle checkbox groups
         if (field.type === 'checkbox-group' && field.options) {
             const answer = determineYesNoAnswer(combined, profile);
@@ -1601,7 +1712,7 @@ function clientSideAutofill(fields, profile) {
             }
             continue;
         }
-        
+
         // Handle select dropdowns with Yes/No questions
         if (field.type === 'select' || field.tagName === 'SELECT') {
             // First check if this is a Yes/No question in a dropdown
@@ -1617,49 +1728,49 @@ function clientSideAutofill(fields, profile) {
                 }
             }
         }
-        
+
         // Determine what profile field this maps to
         const profileField = determineProfileField(combined);
         if (!profileField) {
             console.log("EasePath: No profile field match for:", combined.substring(0, 40));
             continue;
         }
-        
+
         // Get the value from the profile
         const value = getProfileValue(profile, profileField);
         if (!value) {
             console.log("EasePath: No value in profile for:", profileField);
             continue;
         }
-        
+
         // Find the actual DOM element
         let element = findElementByIdentifier(field.id || field.name, fields);
         if (!element) {
             console.log("EasePath: Could not find element for:", field.id || field.name);
             continue;
         }
-        
+
         // Skip if already filled (for text inputs)
         if (element.tagName !== 'SELECT' && element.value && element.value.trim() !== '') {
             console.log("EasePath: Field already filled:", field.id || field.name);
             continue;
         }
-        
+
         // Fill the element
         if (fillElement(element, value)) {
             filledCount++;
             console.log("EasePath: ✓ Filled", field.label || field.name || field.id, "with", value.substring?.(0, 20) || value);
         }
     }
-    
+
     // Also scan for any Yes/No button pairs that weren't collected as radio groups
     const additionalFilled = scanAndFillYesNoButtons(profile);
     filledCount += additionalFilled;
     console.log("EasePath: Scanned page for additional Yes/No buttons, filled:", additionalFilled);
-    
+
     // Also scan for any select dropdowns with Yes/No options we might have missed
     filledCount += scanAndFillSelectDropdowns(profile);
-    
+
     return filledCount;
 }
 
@@ -1669,16 +1780,16 @@ function clientSideAutofill(fields, profile) {
 function scanAndFillSelectDropdowns(profile) {
     let filledCount = 0;
     const selects = document.querySelectorAll('select');
-    
+
     for (const select of selects) {
         // Skip if already has a non-default value selected
         if (select.selectedIndex > 0 && select.value) continue;
         if (select.dataset.easepathProcessed) continue;
-        
+
         // Find the label for this select
         const label = findLabelForInput(select);
         const combined = (label + ' ' + select.name + ' ' + select.id).toLowerCase();
-        
+
         // Try Yes/No answer first
         const yesNoAnswer = determineYesNoAnswer(combined, profile);
         if (yesNoAnswer !== null) {
@@ -1689,7 +1800,7 @@ function scanAndFillSelectDropdowns(profile) {
                 continue;
             }
         }
-        
+
         // Try profile field matching
         const profileField = determineProfileField(combined);
         if (profileField) {
@@ -1701,7 +1812,7 @@ function scanAndFillSelectDropdowns(profile) {
             }
         }
     }
-    
+
     return filledCount;
 }
 
@@ -1710,15 +1821,15 @@ function scanAndFillSelectDropdowns(profile) {
  */
 function determineYesNoAnswer(questionText, profile) {
     const q = questionText.toLowerCase();
-    
+
     // === PROFILE-BASED ANSWERS (use onboarding data) ===
-    
+
     // Citizenship / Work Authorization
     if (q.includes('citizen') || q.includes('citizenship') || q.includes('u.s. citizen') || q.includes('us citizen')) {
         const isCitizen = profile.isUsCitizen === true || profile.usCitizen === true;
         return isCitizen ? 'Yes' : 'No';
     }
-    if (q.includes('authorized to work') || q.includes('legally authorized') || q.includes('eligible to work') || 
+    if (q.includes('authorized to work') || q.includes('legally authorized') || q.includes('eligible to work') ||
         q.includes('work authorization') || q.includes('legally eligible') || q.includes('right to work')) {
         // If US citizen OR has work authorization, answer Yes
         const isCitizen = profile.isUsCitizen === true || profile.usCitizen === true;
@@ -1731,12 +1842,12 @@ function determineYesNoAnswer(questionText, profile) {
     if (q.includes('sponsor') || q.includes('sponsorship') || q.includes('visa sponsor') || q.includes('require sponsor')) {
         return profile.requiresSponsorship === true ? 'Yes' : 'No';
     }
-    
+
     // Relocation
     if (q.includes('relocate') || q.includes('relocation') || q.includes('willing to move') || q.includes('open to relocation')) {
         return profile.willingToRelocate === true ? 'Yes' : 'No';
     }
-    
+
     // Veteran Status - only if profile has a clear yes/no value
     if (q.includes('veteran') || q.includes('military') || q.includes('protected veteran') || q.includes('served in')) {
         const vetStatus = (profile.veteranStatus || '').toLowerCase();
@@ -1749,7 +1860,7 @@ function determineYesNoAnswer(questionText, profile) {
         // If unclear, don't auto-answer
         return null;
     }
-    
+
     // Disability Status
     if (q.includes('disability') || q.includes('disabled') || q.includes('handicap')) {
         const disStatus = (profile.disabilityStatus || '').toLowerCase();
@@ -1761,9 +1872,9 @@ function determineYesNoAnswer(questionText, profile) {
         }
         return null;
     }
-    
+
     // === COMMON QUESTIONS WITH STANDARD ANSWERS ===
-    
+
     // Questions almost always answered "No" (past issues, restrictions)
     const noQuestions = [
         'worked at', 'worked here', 'previously employed', 'former employee', 'worked for this company',
@@ -1777,7 +1888,7 @@ function determineYesNoAnswer(questionText, profile) {
         'related to anyone', 'relative', 'family member works',
         'pending charges', 'under investigation'
     ];
-    
+
     // Questions almost always answered "Yes" (consent, willingness)
     const yesQuestions = [
         'background check', 'willing to undergo', 'consent to', 'agree to background',
@@ -1789,21 +1900,21 @@ function determineYesNoAnswer(questionText, profile) {
         'submit', 'willing to submit',
         'drug test', 'drug screening', 'willing to take'
     ];
-    
+
     // Check for "No" patterns first
     for (const pattern of noQuestions) {
         if (q.includes(pattern)) {
             return 'No';
         }
     }
-    
+
     // Check for "Yes" patterns
     for (const pattern of yesQuestions) {
         if (q.includes(pattern)) {
             return 'Yes';
         }
     }
-    
+
     return null; // Don't know how to answer - let user fill it
 }
 
@@ -1812,15 +1923,15 @@ function determineYesNoAnswer(questionText, profile) {
  */
 function clickRadioOption(field, answer) {
     const answerLower = answer.toLowerCase();
-    
+
     // Try to find the option that matches
     for (const option of field.options || []) {
         const optText = (option.text || '').toLowerCase().trim();
         const optValue = (option.value || '').toLowerCase().trim();
-        
-        if (optText === answerLower || optValue === answerLower || 
+
+        if (optText === answerLower || optValue === answerLower ||
             optText.includes(answerLower) || optValue.includes(answerLower)) {
-            
+
             // Find and click the radio button
             let radio = option.id ? document.getElementById(option.id) : null;
             if (!radio && option.value) {
@@ -1837,7 +1948,7 @@ function clickRadioOption(field, answer) {
                     }
                 }
             }
-            
+
             if (radio && !radio.checked) {
                 radio.click();
                 radio.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1846,7 +1957,7 @@ function clickRadioOption(field, answer) {
             }
         }
     }
-    
+
     return false;
 }
 
@@ -1855,17 +1966,17 @@ function clickRadioOption(field, answer) {
  */
 function clickCheckboxOption(field, answer) {
     const shouldCheck = answer.toLowerCase() === 'yes';
-    
+
     for (const option of field.options || []) {
         const optText = (option.text || '').toLowerCase().trim();
-        
+
         // For checkboxes, we typically check if the answer is "Yes"
         if (shouldCheck && (optText.includes('yes') || optText.includes('agree') || optText.includes('accept'))) {
             let checkbox = option.id ? document.getElementById(option.id) : null;
             if (!checkbox && option.value) {
                 checkbox = document.querySelector(`input[type="checkbox"][value="${option.value}"]`);
             }
-            
+
             if (checkbox && !checkbox.checked) {
                 checkbox.click();
                 highlightElement(checkbox.closest('label') || checkbox.parentElement || checkbox);
@@ -1873,7 +1984,7 @@ function clickCheckboxOption(field, answer) {
             }
         }
     }
-    
+
     return false;
 }
 
@@ -1882,28 +1993,28 @@ function clickCheckboxOption(field, answer) {
  */
 function scanAndFillYesNoButtons(profile) {
     let filledCount = 0;
-    
+
     // Find all containers that might have Yes/No buttons
     const questionContainers = document.querySelectorAll(
         '.question, .form-group, .field-group, [data-testid*="question"], ' +
         'fieldset, .radio-group, [role="radiogroup"], [role="group"]'
     );
-    
+
     for (const container of questionContainers) {
         // Skip if already processed
         if (container.dataset.easepathProcessed) continue;
-        
+
         // Find the question text
         const questionEl = container.querySelector('label, legend, .question-text, h3, h4, p');
         if (!questionEl) continue;
-        
+
         const questionText = questionEl.textContent || '';
         if (!questionText.trim()) continue;
-        
+
         // Find Yes/No buttons or radio inputs
         const yesBtn = findYesNoButton(container, 'yes');
         const noBtn = findYesNoButton(container, 'no');
-        
+
         if (yesBtn || noBtn) {
             const answer = determineYesNoAnswer(questionText, profile);
             if (answer) {
@@ -1919,7 +2030,7 @@ function scanAndFillYesNoButtons(profile) {
             }
         }
     }
-    
+
     return filledCount;
 }
 
@@ -1928,20 +2039,20 @@ function scanAndFillYesNoButtons(profile) {
  */
 function findYesNoButton(container, type) {
     const searchTerms = type === 'yes' ? ['yes', 'true', '1'] : ['no', 'false', '0'];
-    
+
     // Try radio inputs first
     const radios = container.querySelectorAll('input[type="radio"]');
     for (const radio of radios) {
         const label = findLabelForInput(radio);
         const value = radio.value.toLowerCase();
-        
+
         for (const term of searchTerms) {
             if (value === term || label.toLowerCase().trim() === term) {
                 return radio;
             }
         }
     }
-    
+
     // Try buttons
     const buttons = container.querySelectorAll('button, [role="button"], .btn');
     for (const btn of buttons) {
@@ -1952,7 +2063,7 @@ function findYesNoButton(container, type) {
             }
         }
     }
-    
+
     // Try clickable divs/spans that look like buttons
     const clickables = container.querySelectorAll('[class*="option"], [class*="choice"], [class*="answer"]');
     for (const el of clickables) {
@@ -1963,7 +2074,7 @@ function findYesNoButton(container, type) {
             }
         }
     }
-    
+
     return null;
 }
 
@@ -1975,11 +2086,11 @@ function isAlreadySelected(element) {
         return element.checked;
     }
     // For button-style elements, check for selected/active class
-    return element.classList.contains('selected') || 
-           element.classList.contains('active') || 
-           element.classList.contains('checked') ||
-           element.getAttribute('aria-checked') === 'true' ||
-           element.getAttribute('aria-selected') === 'true';
+    return element.classList.contains('selected') ||
+        element.classList.contains('active') ||
+        element.classList.contains('checked') ||
+        element.getAttribute('aria-checked') === 'true' ||
+        element.getAttribute('aria-selected') === 'true';
 }
 
 /**
@@ -1993,11 +2104,11 @@ function determineProfileField(combined) {
     if (matchesAny(combined, ['last name', 'lastname', 'lname', 'surname', 'family name', 'last_name'])) {
         return 'lastName';
     }
-    if (matchesAny(combined, ['full name', 'fullname', 'your name', 'name']) && 
+    if (matchesAny(combined, ['full name', 'fullname', 'your name', 'name']) &&
         !combined.includes('first') && !combined.includes('last') && !combined.includes('company')) {
         return 'fullName';
     }
-    
+
     // Contact fields
     if (matchesAny(combined, ['email', 'e-mail', 'email address'])) {
         return 'email';
@@ -2005,7 +2116,7 @@ function determineProfileField(combined) {
     if (matchesAny(combined, ['phone', 'telephone', 'mobile', 'cell', 'tel', 'phone number'])) {
         return 'phone';
     }
-    
+
     // Social/professional links
     if (matchesAny(combined, ['linkedin', 'linked in', 'linkedin url', 'linkedin profile'])) {
         return 'linkedInUrl';
@@ -2016,7 +2127,7 @@ function determineProfileField(combined) {
     if (matchesAny(combined, ['portfolio', 'website', 'personal site', 'personal website', 'url'])) {
         return 'portfolioUrl';
     }
-    
+
     // Address fields
     if (matchesAny(combined, ['street', 'address', 'address line', 'street address']) && !combined.includes('email')) {
         return 'address';
@@ -2033,7 +2144,7 @@ function determineProfileField(combined) {
     if (matchesAny(combined, ['country', 'nation'])) {
         return 'country';
     }
-    
+
     // Work authorization
     if (matchesAny(combined, ['authorized', 'authorization', 'legally authorized', 'work authorization', 'eligible to work'])) {
         return 'workAuthorization';
@@ -2044,7 +2155,7 @@ function determineProfileField(combined) {
     if (matchesAny(combined, ['citizen', 'us citizen', 'citizenship', 'u.s. citizen'])) {
         return 'isUsCitizen';
     }
-    
+
     // Education
     if (matchesAny(combined, ['university', 'school', 'college', 'institution', 'school name'])) {
         return 'university';
@@ -2061,16 +2172,16 @@ function determineProfileField(combined) {
     if (matchesAny(combined, ['gpa', 'grade point'])) {
         return 'gpa';
     }
-    
+
     // Experience
-    if (matchesAny(combined, ['years of experience', 'experience', 'years experience', 'work experience']) && 
+    if (matchesAny(combined, ['years of experience', 'experience', 'years experience', 'work experience']) &&
         !combined.includes('describe') && !combined.includes('tell')) {
         return 'yearsOfExperience';
     }
     if (matchesAny(combined, ['salary', 'compensation', 'expected salary', 'desired salary', 'salary expectation'])) {
         return 'desiredSalary';
     }
-    
+
     // EEO fields
     if (matchesAny(combined, ['gender', 'sex'])) {
         return 'gender';
@@ -2084,7 +2195,7 @@ function determineProfileField(combined) {
     if (matchesAny(combined, ['ethnicity', 'race', 'ethnic background', 'racial'])) {
         return 'ethnicity';
     }
-    
+
     // Start date & availability
     if (matchesAny(combined, ['start date', 'available', 'availability', 'when can you start', 'earliest start'])) {
         return 'availableStartDate';
@@ -2092,7 +2203,7 @@ function determineProfileField(combined) {
     if (matchesAny(combined, ['relocate', 'relocation', 'willing to relocate', 'open to relocation'])) {
         return 'willingToRelocate';
     }
-    
+
     return null;
 }
 
@@ -2108,7 +2219,7 @@ function matchesAny(text, patterns) {
  */
 function getProfileValue(profile, fieldName) {
     if (!profile || !fieldName) return null;
-    
+
     switch (fieldName) {
         case 'firstName':
             return profile.firstName;
@@ -2139,11 +2250,11 @@ function getProfileValue(profile, fieldName) {
         case 'workAuthorization':
             return profile.workAuthorization || (profile.usCitizen ? 'Yes' : undefined);
         case 'requiresSponsorship':
-            return profile.requiresSponsorship === true ? 'Yes' : 
-                   profile.requiresSponsorship === false ? 'No' : undefined;
+            return profile.requiresSponsorship === true ? 'Yes' :
+                profile.requiresSponsorship === false ? 'No' : undefined;
         case 'isUsCitizen':
-            return profile.usCitizen === true ? 'Yes' : 
-                   profile.usCitizen === false ? 'No' : undefined;
+            return profile.usCitizen === true ? 'Yes' :
+                profile.usCitizen === false ? 'No' : undefined;
         case 'university':
             return profile.university;
         case 'highestDegree':
@@ -2169,8 +2280,8 @@ function getProfileValue(profile, fieldName) {
         case 'availableStartDate':
             return profile.availableStartDate;
         case 'willingToRelocate':
-            return profile.willingToRelocate === true ? 'Yes' : 
-                   profile.willingToRelocate === false ? 'No' : undefined;
+            return profile.willingToRelocate === true ? 'Yes' :
+                profile.willingToRelocate === false ? 'No' : undefined;
         default:
             return profile[fieldName];
     }
@@ -2182,7 +2293,7 @@ function getProfileValue(profile, fieldName) {
 function showProcessingOverlay(message) {
     // Remove existing overlay if any
     hideOverlay();
-    
+
     const overlay = document.createElement('div');
     overlay.id = 'easepath-overlay';
     overlay.innerHTML = `
@@ -2256,7 +2367,7 @@ function hideOverlay() {
 
 function showSuccessOverlay(message) {
     hideOverlay();
-    
+
     const overlay = document.createElement('div');
     overlay.id = 'easepath-success-overlay';
     overlay.innerHTML = `
@@ -2284,7 +2395,7 @@ function showSuccessOverlay(message) {
         </style>
     `;
     document.body.appendChild(overlay);
-    
+
     // Auto-remove after 5 seconds
     setTimeout(() => {
         const el = document.getElementById('easepath-success-overlay');
@@ -2304,17 +2415,17 @@ function analyzePageContent() {
         platform: detectPlatform(),
         sections: []
     };
-    
+
     // Check if this is a job application page
     const bodyText = document.body.innerText.toLowerCase();
-    analysis.isJobApplication = 
+    analysis.isJobApplication =
         bodyText.includes('apply') ||
         bodyText.includes('application') ||
         bodyText.includes('resume') ||
         bodyText.includes('cover letter') ||
         bodyText.includes('work experience') ||
         bodyText.includes('job posting');
-    
+
     // Try to extract job title
     const jobTitleSelectors = [
         'h1', '.job-title', '[data-testid*="job-title"]', '.posting-headline',
@@ -2328,7 +2439,7 @@ function analyzePageContent() {
             break;
         }
     }
-    
+
     // Try to extract company name
     const companySelectors = [
         '.company-name', '[data-testid*="company"]', '.employer-name',
@@ -2342,7 +2453,7 @@ function analyzePageContent() {
             break;
         }
     }
-    
+
     // Identify form sections
     const sections = document.querySelectorAll('section, fieldset, [role="group"], .form-section');
     sections.forEach(section => {
@@ -2351,7 +2462,7 @@ function analyzePageContent() {
             analysis.sections.push(heading.innerText.trim());
         }
     });
-    
+
     return analysis;
 }
 
@@ -2360,7 +2471,7 @@ function analyzePageContent() {
  */
 function detectPlatform() {
     const hostname = window.location.hostname.toLowerCase();
-    
+
     if (hostname.includes('greenhouse.io') || hostname.includes('boards.greenhouse')) return 'greenhouse';
     if (hostname.includes('lever.co')) return 'lever';
     if (hostname.includes('workday') || hostname.includes('myworkdayjobs')) return 'workday';
@@ -2375,7 +2486,7 @@ function detectPlatform() {
     if (hostname.includes('breezy')) return 'breezy';
     if (hostname.includes('bamboohr')) return 'bamboohr';
     if (hostname.includes('successfactors')) return 'successfactors';
-    
+
     return 'unknown';
 }
 
@@ -2386,19 +2497,19 @@ function collectFormFieldsWithContext() {
     const fields = [];
     const inputs = document.querySelectorAll('input, textarea, select');
     const processedGroups = new Set();
-    
+
     inputs.forEach((input, index) => {
         // Skip hidden and invisible fields
         if (input.type === 'hidden' || !isElementVisible(input)) return;
         // Skip submit/button types
         if (['submit', 'button', 'reset', 'image'].includes(input.type)) return;
-        
+
         // Handle checkbox groups
         if (input.type === 'checkbox') {
             const groupId = getCheckboxGroupId(input);
             if (processedGroups.has(groupId)) return;
             processedGroups.add(groupId);
-            
+
             const groupOptions = getCheckboxGroupOptions(input);
             fields.push({
                 index: index,
@@ -2415,13 +2526,13 @@ function collectFormFieldsWithContext() {
             });
             return;
         }
-        
+
         // Handle radio buttons
         if (input.type === 'radio') {
             const groupId = input.name || `radio_${index}`;
             if (processedGroups.has(groupId)) return;
             processedGroups.add(groupId);
-            
+
             const radioOptions = getRadioGroupOptions(input);
             fields.push({
                 index: index,
@@ -2438,7 +2549,7 @@ function collectFormFieldsWithContext() {
             });
             return;
         }
-        
+
         // Handle file inputs
         if (input.type === 'file') {
             fields.push({
@@ -2454,7 +2565,7 @@ function collectFormFieldsWithContext() {
             });
             return;
         }
-        
+
         // Regular fields
         fields.push({
             index: index,
@@ -2475,7 +2586,7 @@ function collectFormFieldsWithContext() {
             dataAttributes: getDataAttributes(input)
         });
     });
-    
+
     // Also find drag-and-drop upload zones
     const dropZones = document.querySelectorAll('[class*="upload"], [class*="drop"], [class*="dropzone"], [data-testid*="upload"]');
     dropZones.forEach((zone, idx) => {
@@ -2492,7 +2603,7 @@ function collectFormFieldsWithContext() {
             });
         }
     });
-    
+
     return fields;
 }
 
@@ -2503,7 +2614,7 @@ function getRadioGroupOptions(radio) {
     const options = [];
     const name = radio.name;
     const radios = name ? document.querySelectorAll(`input[type="radio"][name="${name}"]`) : [radio];
-    
+
     radios.forEach(r => {
         const label = findLabelForInput(r);
         options.push({
@@ -2513,7 +2624,7 @@ function getRadioGroupOptions(radio) {
             checked: r.checked
         });
     });
-    
+
     return options;
 }
 
@@ -2522,7 +2633,7 @@ function getRadioGroupLabel(radio) {
     if (parent) {
         const legend = parent.querySelector('legend');
         if (legend) return cleanText(legend.textContent);
-        
+
         const heading = parent.querySelector('h3, h4, h5, .question-text, .field-label');
         if (heading) return cleanText(heading.textContent);
     }
@@ -2533,10 +2644,10 @@ function getCheckboxGroupId(checkbox) {
     const parent = checkbox.closest('fieldset, .question, .form-group, [role="group"]');
     if (parent && parent.id) return parent.id;
     if (checkbox.name) return checkbox.name;
-    
+
     const legend = parent?.querySelector('legend, .question-text');
     if (legend) return 'group_' + legend.textContent.trim().substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_');
-    
+
     return 'checkbox_' + Math.random().toString(36).substring(7);
 }
 
@@ -2545,7 +2656,7 @@ function getCheckboxGroupLabel(checkbox) {
     if (parent) {
         const legend = parent.querySelector('legend');
         if (legend) return cleanText(legend.textContent);
-        
+
         const heading = parent.querySelector('h3, h4, h5, .question-text, .field-label');
         if (heading) return cleanText(heading.textContent);
     }
@@ -2555,10 +2666,10 @@ function getCheckboxGroupLabel(checkbox) {
 function getCheckboxGroupOptions(checkbox) {
     const options = [];
     const parent = checkbox.closest('fieldset, .question, .form-group, [role="group"]');
-    
-    let checkboxes = parent ? parent.querySelectorAll('input[type="checkbox"]') : 
-                    checkbox.name ? document.querySelectorAll(`input[name="${checkbox.name}"]`) : [checkbox];
-    
+
+    let checkboxes = parent ? parent.querySelectorAll('input[type="checkbox"]') :
+        checkbox.name ? document.querySelectorAll(`input[name="${checkbox.name}"]`) : [checkbox];
+
     checkboxes.forEach(cb => {
         const label = findLabelForInput(cb);
         options.push({
@@ -2568,7 +2679,7 @@ function getCheckboxGroupOptions(checkbox) {
             checked: cb.checked
         });
     });
-    
+
     return options;
 }
 
@@ -2578,22 +2689,22 @@ function findLabelForInput(input) {
         const label = document.querySelector(`label[for="${input.id}"]`);
         if (label) return cleanText(label.innerText);
     }
-    
+
     // Method 2: Input inside label
     const parentLabel = input.closest('label');
     if (parentLabel) return cleanText(parentLabel.innerText);
-    
+
     // Method 3: aria-labelledby
     const labelledBy = input.getAttribute('aria-labelledby');
     if (labelledBy) {
         const labelEl = document.getElementById(labelledBy);
         if (labelEl) return cleanText(labelEl.innerText);
     }
-    
+
     // Method 4: aria-label
     const ariaLabel = input.getAttribute('aria-label');
     if (ariaLabel) return cleanText(ariaLabel);
-    
+
     // Method 5: Previous sibling
     let sibling = input.previousElementSibling;
     while (sibling) {
@@ -2602,7 +2713,7 @@ function findLabelForInput(input) {
         }
         sibling = sibling.previousElementSibling;
     }
-    
+
     // Method 6: Parent's label
     const parent = input.parentElement;
     if (parent) {
@@ -2611,10 +2722,10 @@ function findLabelForInput(input) {
             return cleanText(labelInParent.innerText);
         }
     }
-    
+
     // Method 7: Placeholder as fallback
     if (input.placeholder) return cleanText(input.placeholder);
-    
+
     return '';
 }
 
@@ -2657,10 +2768,10 @@ function getDataAttributes(input) {
 function isElementVisible(element) {
     if (!element) return false;
     const style = window.getComputedStyle(element);
-    return style.display !== 'none' && 
-           style.visibility !== 'hidden' && 
-           style.opacity !== '0' &&
-           element.offsetParent !== null;
+    return style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        style.opacity !== '0' &&
+        element.offsetParent !== null;
 }
 
 function isLongAnswerField(input) {
@@ -2673,11 +2784,11 @@ function isLongAnswerField(input) {
 function isEssayQuestion(field) {
     // Must be a long answer field (textarea or large maxLength)
     if (!field.isLongAnswer) return false;
-    
+
     const label = (field.label || '').toLowerCase();
     const placeholder = (field.placeholder || '').toLowerCase();
     const combined = label + ' ' + placeholder;
-    
+
     // Keywords that indicate an essay/personal response question
     const essayKeywords = [
         'why', 'describe', 'explain', 'tell us', 'share', 'what makes',
@@ -2690,19 +2801,19 @@ function isEssayQuestion(field) {
         'accomplish', 'contribution', 'value you bring', 'qualified',
         'unique', 'stand out', 'set you apart', 'bring to this role'
     ];
-    
+
     // Keywords that indicate it's NOT an essay (even if textarea)
     const notEssayKeywords = [
         'address', 'street', 'city', 'state', 'zip', 'phone', 'email',
         'name', 'url', 'link', 'linkedin', 'github', 'portfolio',
         'salary', 'years', 'reference', 'how did you hear'
     ];
-    
+
     // If it contains non-essay keywords, it's probably not an essay
     for (const kw of notEssayKeywords) {
         if (combined.includes(kw)) return false;
     }
-    
+
     // Check if it matches essay keywords
     return essayKeywords.some(kw => combined.includes(kw));
 }
@@ -2713,12 +2824,12 @@ function isEssayQuestion(field) {
 function applySmartMapping(mapping, fields) {
     console.log("EasePath: Applying smart mapping:", mapping);
     let filledCount = 0;
-    
+
     for (const [identifier, value] of Object.entries(mapping)) {
         if (!value || value === '') continue;
-        
+
         console.log("EasePath: Filling:", identifier, "->", value.substring?.(0, 50) || value);
-        
+
         // Check for checkbox/radio groups
         const fieldInfo = fields.find(f => f.id === identifier || f.name === identifier);
         if (fieldInfo?.type === 'checkbox-group') {
@@ -2729,14 +2840,14 @@ function applySmartMapping(mapping, fields) {
             if (fillRadioGroup(identifier, value, fields)) filledCount++;
             continue;
         }
-        
+
         // Find and fill regular elements
         let element = findElementByIdentifier(identifier, fields);
         if (element && fillElement(element, value)) {
             filledCount++;
         }
     }
-    
+
     return filledCount;
 }
 
@@ -2744,19 +2855,19 @@ function findElementByIdentifier(identifier, fields) {
     // Try ID
     let element = document.getElementById(identifier);
     if (element) return element;
-    
+
     // Try name
     element = document.querySelector(`[name="${identifier}"]`);
     if (element) return element;
-    
+
     // Try partial ID match
     element = document.querySelector(`[id*="${identifier}"]`);
     if (element) return element;
-    
+
     // Try data attribute
     element = document.querySelector(`[data-field="${identifier}"]`);
     if (element) return element;
-    
+
     // Try from collected fields by index
     const field = fields.find(f => f.id === identifier || f.name === identifier);
     if (field?.index !== undefined) {
@@ -2764,16 +2875,16 @@ function findElementByIdentifier(identifier, fields) {
         const visibleInputs = Array.from(allInputs).filter(isElementVisible);
         if (visibleInputs[field.index]) return visibleInputs[field.index];
     }
-    
+
     return null;
 }
 
 function fillElement(element, value) {
     if (!element) return false;
-    
+
     const tagName = element.tagName.toUpperCase();
     const inputType = (element.type || '').toLowerCase();
-    
+
     try {
         if (tagName === 'SELECT') return fillSelectElement(element, value);
         if (inputType === 'checkbox') return fillCheckbox(element, value);
@@ -2782,29 +2893,29 @@ function fillElement(element, value) {
     } catch (error) {
         console.error("EasePath: Error filling element:", error);
     }
-    
+
     return false;
 }
 
 function fillTextInput(element, value) {
     if (!element || !value) return false;
-    
+
     try {
         // Scroll element into view
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
+
         // Clear existing value first
         element.value = '';
-        
+
         // Focus the element
         element.focus();
         element.click();
-        
+
         // Small delay to let focus take effect
         // Use native setters for React/Angular/Vue compatibility
         const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
         const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-        
+
         if (element.tagName === 'TEXTAREA' && nativeTextAreaValueSetter) {
             nativeTextAreaValueSetter.call(element, value);
         } else if (element.tagName === 'INPUT' && nativeInputValueSetter) {
@@ -2812,7 +2923,7 @@ function fillTextInput(element, value) {
         } else {
             element.value = value;
         }
-        
+
         // Trigger all the events that frameworks listen for
         element.dispatchEvent(new Event('focus', { bubbles: true }));
         element.dispatchEvent(new Event('input', { bubbles: true, inputType: 'insertText' }));
@@ -2821,20 +2932,20 @@ function fillTextInput(element, value) {
         element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'a' }));
         element.dispatchEvent(new KeyboardEvent('keypress', { bubbles: true, key: 'a' }));
         element.dispatchEvent(new Event('blur', { bubbles: true }));
-        
+
         // Also try triggering React's synthetic events
         const tracker = element._valueTracker;
         if (tracker) {
             tracker.setValue('');
         }
         element.dispatchEvent(new Event('input', { bubbles: true }));
-        
+
         // Visual feedback
         highlightElement(element);
-        
+
         console.log("EasePath: ✓ Filled text input:", element.name || element.id, "=", value.substring(0, 30));
         return true;
-        
+
     } catch (error) {
         console.error("EasePath: Error filling text input:", error);
         return false;
@@ -2864,11 +2975,11 @@ function fillRadio(element, value) {
         const name = element.name;
         const radioGroup = document.querySelectorAll(`input[name="${name}"]`);
         const valueLower = value.toString().toLowerCase().trim();
-        
+
         for (const radio of radioGroup) {
             const radioValue = radio.value.toLowerCase().trim();
             const radioLabel = findLabelForInput(radio).toLowerCase();
-            
+
             if (radioValue === valueLower || radioLabel.includes(valueLower) || valueLower.includes(radioValue)) {
                 radio.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 radio.focus();
@@ -2890,17 +3001,17 @@ function fillRadioGroup(groupId, value, fields) {
     try {
         const groupField = fields.find(f => (f.id === groupId || f.name === groupId) && f.type === 'radio-group');
         if (!groupField?.options) return false;
-        
+
         const valueLower = value.toString().toLowerCase().trim();
-        
+
         for (const option of groupField.options) {
             const optText = (option.text || '').toLowerCase();
             const optValue = (option.value || '').toLowerCase();
-            
+
             if (optText.includes(valueLower) || valueLower.includes(optText) ||
                 optValue.includes(valueLower) || valueLower.includes(optValue) ||
                 optText === valueLower || optValue === valueLower) {
-                
+
                 let radio = option.id ? document.getElementById(option.id) : null;
                 if (!radio) {
                     radio = document.querySelector(`input[type="radio"][value="${option.value}"]`);
@@ -2914,7 +3025,7 @@ function fillRadioGroup(groupId, value, fields) {
                         }
                     }
                 }
-                
+
                 if (radio && !radio.checked) {
                     radio.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     radio.focus();
@@ -2937,21 +3048,21 @@ function fillCheckboxGroup(groupId, value, fields) {
     try {
         const groupField = fields.find(f => f.id === groupId && f.type === 'checkbox-group');
         if (!groupField?.options) return false;
-        
+
         const valueLower = value.toString().toLowerCase().trim();
-    
+
         for (const option of groupField.options) {
             const optText = (option.text || '').toLowerCase();
             const optValue = (option.value || '').toLowerCase();
-            
+
             if (optText.includes(valueLower) || valueLower.includes(optText) ||
                 optValue.includes(valueLower) || valueLower.includes(optValue)) {
-                
+
                 let checkbox = option.id ? document.getElementById(option.id) : null;
                 if (!checkbox) {
                     checkbox = document.querySelector(`input[type="checkbox"][value="${option.value}"]`);
                 }
-                
+
                 if (checkbox && !checkbox.checked) {
                     checkbox.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     checkbox.focus();
@@ -2974,9 +3085,9 @@ function fillSelectElement(select, value) {
     try {
         select.scrollIntoView({ behavior: 'smooth', block: 'center' });
         select.focus();
-        
+
         const valueLower = value.toString().toLowerCase().trim();
-        
+
         // Try exact value match
         for (const option of select.options) {
             if (option.value.toLowerCase() === valueLower) {
@@ -2988,7 +3099,7 @@ function fillSelectElement(select, value) {
                 return true;
             }
         }
-        
+
         // Try exact text match
         for (const option of select.options) {
             if (option.text.toLowerCase().trim() === valueLower) {
@@ -3000,7 +3111,7 @@ function fillSelectElement(select, value) {
                 return true;
             }
         }
-        
+
         // Try contains match
         for (const option of select.options) {
             const optTextLower = option.text.toLowerCase();
@@ -3013,7 +3124,7 @@ function fillSelectElement(select, value) {
                 return true;
             }
         }
-        
+
         // Handle Yes/No
         if (valueLower === 'yes' || valueLower === 'true') {
             for (const option of select.options) {
@@ -3039,7 +3150,7 @@ function fillSelectElement(select, value) {
                 }
             }
         }
-        
+
         return false;
     } catch (error) {
         console.error("EasePath: Error filling select:", error);
@@ -3049,15 +3160,15 @@ function fillSelectElement(select, value) {
 
 function highlightElement(element) {
     if (!element) return;
-    
+
     const originalBg = element.style.backgroundColor;
     const originalTransition = element.style.transition;
     const originalOutline = element.style.outline;
-    
+
     element.style.transition = 'all 0.3s ease';
     element.style.backgroundColor = 'rgba(99, 102, 241, 0.3)';
     element.style.outline = '2px solid #6366f1';
-    
+
     setTimeout(() => {
         element.style.backgroundColor = originalBg;
         element.style.outline = originalOutline;
@@ -3073,11 +3184,11 @@ function highlightEssayQuestions(essayQuestions) {
         if (!element && field.name) {
             element = document.querySelector(`[name="${field.name}"]`);
         }
-        
+
         if (element) {
             element.style.border = '2px solid #f59e0b';
             element.style.boxShadow = '0 0 12px rgba(245, 158, 11, 0.4)';
-            
+
             const marker = document.createElement('div');
             marker.className = 'easepath-essay-marker';
             marker.innerHTML = `
@@ -3148,7 +3259,7 @@ function showEssayNotification(essayQuestions) {
         </div>
     `;
     document.body.appendChild(notification);
-    
+
     setTimeout(() => {
         const notif = document.getElementById('easepath-essay-notification');
         if (notif) notif.remove();
@@ -3164,10 +3275,10 @@ function cleanText(text) {
  */
 function autoSubmitForm() {
     console.log("EasePath: Attempting to auto-submit...");
-    
+
     // Capture answers before submitting
     captureAndLearnAnswers();
-    
+
     // Find submit buttons
     const submitSelectors = [
         'button[type="submit"]',
@@ -3177,7 +3288,7 @@ function autoSubmitForm() {
         '[data-automation-id*="submit"]',
         '[data-automation-id*="apply"]'
     ];
-    
+
     for (const selector of submitSelectors) {
         const button = document.querySelector(selector);
         if (button && isElementVisible(button) && !button.disabled) {
@@ -3186,11 +3297,11 @@ function autoSubmitForm() {
             return true;
         }
     }
-    
+
     // Find by button text
     const submitTexts = ['submit', 'apply', 'send application', 'apply now', 'submit application', 'continue', 'next'];
     const allButtons = document.querySelectorAll('button, input[type="button"], [role="button"], a.btn, a.button');
-    
+
     for (const button of allButtons) {
         const text = (button.innerText || button.value || '').toLowerCase().trim();
         if (submitTexts.some(t => text.includes(t)) && isElementVisible(button) && !button.disabled) {
@@ -3199,7 +3310,7 @@ function autoSubmitForm() {
             return true;
         }
     }
-    
+
     console.log("EasePath: No submit button found");
     return false;
 }
@@ -3209,7 +3320,7 @@ function autoSubmitForm() {
  */
 function captureAndLearnAnswers() {
     const answersToLearn = [];
-    
+
     // Capture textareas
     document.querySelectorAll('textarea').forEach(textarea => {
         const value = textarea.value.trim();
@@ -3225,7 +3336,7 @@ function captureAndLearnAnswers() {
             }
         }
     });
-    
+
     // Capture text inputs
     document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"]').forEach(input => {
         const value = input.value.trim();
@@ -3241,7 +3352,7 @@ function captureAndLearnAnswers() {
             }
         }
     });
-    
+
     if (answersToLearn.length > 0) {
         console.log("EasePath: Learning from", answersToLearn.length, "answers");
         chrome.runtime.sendMessage({
@@ -3274,7 +3385,7 @@ document.addEventListener('click', (e) => {
  */
 async function handleResumeUploads(fileFields) {
     console.log("EasePath: Attempting resume upload to", fileFields.length, "fields");
-    
+
     return new Promise((resolve) => {
         chrome.runtime.sendMessage({ action: "get_resume_file" }, async (response) => {
             if (chrome.runtime.lastError) {
@@ -3282,15 +3393,15 @@ async function handleResumeUploads(fileFields) {
                 resolve(false);
                 return;
             }
-            
+
             if (!response?.fileData) {
                 console.log("EasePath: No resume file available");
                 resolve(false);
                 return;
             }
-            
+
             console.log("EasePath: Got resume:", response.fileName);
-            
+
             try {
                 // Convert base64 to File
                 const byteCharacters = atob(response.fileData);
@@ -3301,14 +3412,14 @@ async function handleResumeUploads(fileFields) {
                 const byteArray = new Uint8Array(byteNumbers);
                 const blob = new Blob([byteArray], { type: response.contentType });
                 const file = new File([blob], response.fileName, { type: response.contentType });
-                
+
                 let uploaded = false;
                 for (const fieldInfo of fileFields) {
                     if (fieldInfo.type === 'file') {
-                        const input = document.getElementById(fieldInfo.id) || 
-                                     document.querySelector(`input[type="file"][name="${fieldInfo.name}"]`) ||
-                                     document.querySelector('input[type="file"]');
-                        
+                        const input = document.getElementById(fieldInfo.id) ||
+                            document.querySelector(`input[type="file"][name="${fieldInfo.name}"]`) ||
+                            document.querySelector('input[type="file"]');
+
                         if (input) {
                             const success = await uploadToFileInput(input, file);
                             if (success) {
@@ -3318,7 +3429,7 @@ async function handleResumeUploads(fileFields) {
                         }
                     } else if (fieldInfo.type === 'dropzone') {
                         const dropzone = document.getElementById(fieldInfo.id) ||
-                                        document.querySelector('[class*="upload"], [class*="drop"]');
+                            document.querySelector('[class*="upload"], [class*="drop"]');
                         if (dropzone) {
                             const success = await uploadToDropzone(dropzone, file);
                             if (success) {
@@ -3328,7 +3439,7 @@ async function handleResumeUploads(fileFields) {
                         }
                     }
                 }
-                
+
                 resolve(uploaded);
             } catch (err) {
                 console.error("EasePath: Error processing resume:", err);
@@ -3343,10 +3454,10 @@ async function uploadToFileInput(input, file) {
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
         input.files = dataTransfer.files;
-        
+
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.dispatchEvent(new Event('input', { bubbles: true }));
-        
+
         highlightElement(input.parentElement || input);
         console.log("EasePath: Resume uploaded to file input");
         return true;
@@ -3360,7 +3471,7 @@ async function uploadToDropzone(dropzone, file) {
     try {
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
-        
+
         const events = ['dragenter', 'dragover', 'drop'];
         for (const eventType of events) {
             const event = new DragEvent(eventType, {
@@ -3370,7 +3481,7 @@ async function uploadToDropzone(dropzone, file) {
             });
             dropzone.dispatchEvent(event);
         }
-        
+
         // Also try hidden file input
         const hiddenInput = dropzone.querySelector('input[type="file"]');
         if (hiddenInput) {
@@ -3379,7 +3490,7 @@ async function uploadToDropzone(dropzone, file) {
             hiddenInput.files = dt.files;
             hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
         }
-        
+
         highlightElement(dropzone);
         console.log("EasePath: File dropped on dropzone");
         return true;
@@ -3387,6 +3498,85 @@ async function uploadToDropzone(dropzone, file) {
         console.error("EasePath: Failed to drop on dropzone:", err);
         return false;
     }
+}
+
+/**
+ * Extract job title and company name from the current page
+ */
+function extractJobInfoFromPage() {
+    let title = 'Unknown Position';
+    let company = 'Unknown Company';
+
+    // Try to get from common page elements
+    const selectors = {
+        title: [
+            'h1[class*="job-title"]',
+            'h1[class*="title"]',
+            '[data-testid="job-title"]',
+            '.job-title',
+            '.posting-title',
+            'h1'
+        ],
+        company: [
+            '[class*="company-name"]',
+            '[data-testid="company-name"]',
+            '.company-name',
+            '[class*="employer"]',
+            '.posting-company'
+        ]
+    };
+
+    // Try title selectors
+    for (const selector of selectors.title) {
+        const el = document.querySelector(selector);
+        if (el && el.textContent.trim()) {
+            const text = el.textContent.trim();
+            // Skip if it looks like a generic page title
+            if (text.length < 100 && !text.toLowerCase().includes('apply')) {
+                title = text;
+                break;
+            }
+        }
+    }
+
+    // Try company selectors
+    for (const selector of selectors.company) {
+        const el = document.querySelector(selector);
+        if (el && el.textContent.trim()) {
+            company = el.textContent.trim();
+            break;
+        }
+    }
+
+    // Fallback: try to extract from page title
+    if (title === 'Unknown Position' && document.title) {
+        const pageTitle = document.title;
+        // Common patterns: "Job Title at Company" or "Job Title | Company"
+        const patterns = [
+            /^(.+?)\s+at\s+(.+?)(?:\s*[-|]|$)/i,
+            /^(.+?)\s*[-|]\s*(.+?)(?:\s*[-|]|$)/i
+        ];
+        for (const pattern of patterns) {
+            const match = pageTitle.match(pattern);
+            if (match) {
+                if (title === 'Unknown Position') title = match[1].trim();
+                if (company === 'Unknown Company') company = match[2].trim();
+                break;
+            }
+        }
+    }
+
+    // Fallback: use URL for company
+    if (company === 'Unknown Company') {
+        try {
+            const host = new URL(window.location.href).hostname.replace('www.', '');
+            company = host.split('.')[0];
+            company = company.charAt(0).toUpperCase() + company.slice(1);
+        } catch (e) { }
+    }
+
+    console.log("EasePath: Extracted job info:", { title, company });
+    return { title, company };
 }
 
 console.log("EasePath: Content script ready");

@@ -1,6 +1,7 @@
 package com.easepath.backend.controller;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,10 +22,12 @@ import org.springframework.web.bind.annotation.RestController;
 import com.easepath.backend.dto.AutofillRequest;
 import com.easepath.backend.dto.AutofillResponse;
 import com.easepath.backend.dto.UserProfileDto;
+import com.easepath.backend.model.JobApplicationDocument;
 import com.easepath.backend.model.LearnedAnswerDocument;
 import com.easepath.backend.model.ResumeDocument;
 import com.easepath.backend.model.User;
 import com.easepath.backend.model.UserProfileDocument;
+import com.easepath.backend.repository.JobApplicationRepository;
 import com.easepath.backend.repository.ResumeRepository;
 import com.easepath.backend.repository.UserProfileRepository;
 import com.easepath.backend.service.AnswerLearningService;
@@ -38,84 +41,110 @@ import jakarta.servlet.http.HttpServletRequest;
  */
 @RestController
 @RequestMapping("/api/extension")
-@CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*", "chrome-extension://*"}, allowCredentials = "true")
+@CrossOrigin(originPatterns = { "http://localhost:*", "http://127.0.0.1:*",
+        "chrome-extension://*" }, allowCredentials = "true")
 public class ExtensionController {
 
     private static final Logger log = LoggerFactory.getLogger(ExtensionController.class);
 
     private final UserProfileRepository userProfileRepository;
     private final ResumeRepository resumeRepository;
+    private final JobApplicationRepository jobApplicationRepository;
     private final FormMappingService formMappingService;
     private final AnswerLearningService answerLearningService;
 
     public ExtensionController(UserProfileRepository userProfileRepository,
-                              ResumeRepository resumeRepository,
-                              FormMappingService formMappingService,
-                              AnswerLearningService answerLearningService) {
+            ResumeRepository resumeRepository,
+            JobApplicationRepository jobApplicationRepository,
+            FormMappingService formMappingService,
+            AnswerLearningService answerLearningService) {
         this.userProfileRepository = userProfileRepository;
         this.resumeRepository = resumeRepository;
+        this.jobApplicationRepository = jobApplicationRepository;
         this.formMappingService = formMappingService;
         this.answerLearningService = answerLearningService;
     }
-    
+
     // Helper method to extract authenticated user
     private User getCurrentUser(HttpServletRequest request) {
         return (User) request.getAttribute("currentUser");
     }
 
     /**
+     * Get user email from JWT auth OR from email query param.
+     * This allows the extension to work with either authentication method.
+     */
+    private String getUserEmail(HttpServletRequest request, String emailParam) {
+        // First try JWT auth
+        User currentUser = getCurrentUser(request);
+        if (currentUser != null) {
+            return currentUser.getEmail();
+        }
+        // Fall back to email parameter (for extension manual connect)
+        if (emailParam != null && !emailParam.isEmpty()) {
+            log.info("Using email param for extension auth: {}", emailParam);
+            return emailParam;
+        }
+        return null;
+    }
+
+    /**
      * Main autofill endpoint - analyzes form fields and returns values to fill.
      * Uses resume data + user profile + learned answers.
+     * Accepts either JWT auth OR userEmail in request body.
      */
     @PostMapping("/autofill")
-    public ResponseEntity<AutofillResponse> autofill(@RequestBody AutofillRequest request, HttpServletRequest httpRequest) {
-        User currentUser = getCurrentUser(httpRequest);
-        if (currentUser == null) {
+    public ResponseEntity<AutofillResponse> autofill(@RequestBody AutofillRequest request,
+            HttpServletRequest httpRequest) {
+
+        // Use JWT auth or fall back to userEmail in request body
+        String userEmail = getUserEmail(httpRequest, request.getUserEmail());
+        if (userEmail == null) {
             return ResponseEntity.status(401).build();
         }
-        
-        log.info("Autofill request for URL: {} with {} fields from user: {}", request.getUrl(), 
-            request.getFormFields() != null ? request.getFormFields().size() : 0, currentUser.getEmail());
-        
+
+        log.info("Autofill request for URL: {} with {} fields from user: {}", request.getUrl(),
+                request.getFormFields() != null ? request.getFormFields().size() : 0, userEmail);
+
         // 1. Find user profile
-        UserProfileDocument profile = userProfileRepository.findByEmail(currentUser.getEmail())
-            .orElse(null);
-        
+        UserProfileDocument profile = userProfileRepository.findByEmail(userEmail)
+                .orElse(null);
+
         // 2. Find user's resume
-        ResumeDocument resume = resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(currentUser.getEmail())
-            .orElse(null);
-        
+        ResumeDocument resume = resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(userEmail)
+                .orElse(null);
+
         if (profile == null && resume == null) {
-            log.warn("No profile or resume found for user: {}", currentUser.getEmail());
+            log.warn("No profile or resume found for user: {}", userEmail);
             AutofillResponse response = new AutofillResponse();
             response.setMessage("Please upload your resume and set up your profile in the EasePath dashboard first.");
             response.setMapping(Map.of());
             response.setConfidence(0.0);
             return ResponseEntity.ok(response);
         }
-        
+
         // 3. Analyze fields and get basic mapping
         Map<String, String> mapping = new HashMap<>();
-        
+
         if (profile != null) {
             mapping.putAll(formMappingService.analyzeAndMap(
-                request.getUrl(), 
-                request.getFormFields(), 
-                profile
-            ));
+                    request.getUrl(),
+                    request.getFormFields(),
+                    profile));
         }
-        
-        // 4. Check for complex questions (textareas) and try to fill with learned answers
+
+        // 4. Check for complex questions (textareas) and try to fill with learned
+        // answers
         if (request.getFormFields() != null) {
             for (AutofillRequest.FormFieldInfo field : request.getFormFields()) {
-                if ("textarea".equalsIgnoreCase(field.getType()) || 
-                    (field.getLabel() != null && field.getLabel().length() > 30)) {
+                if ("textarea".equalsIgnoreCase(field.getType()) ||
+                        (field.getLabel() != null && field.getLabel().length() > 30)) {
                     // This might be a complex question
                     String question = field.getLabel() != null ? field.getLabel() : field.getPlaceholder();
                     if (question != null && !question.isEmpty()) {
-                        Optional<LearnedAnswerDocument> answer = 
-                            answerLearningService.findBestAnswer(request.getUserEmail(), question);
-                        
+                        Optional<LearnedAnswerDocument> answer = answerLearningService
+                                .findBestAnswer(request.getUserEmail(), question);
+
                         if (answer.isPresent() && answer.get().getConfidence() > 0.5) {
                             String identifier = field.getId() != null ? field.getId() : field.getName();
                             if (identifier != null) {
@@ -127,13 +156,13 @@ public class ExtensionController {
                 }
             }
         }
-        
+
         // 5. Build response
         AutofillResponse response = new AutofillResponse();
         response.setMapping(mapping);
         response.setConfidence(mapping.isEmpty() ? 0.0 : 0.7);
         response.setMessage("Found " + mapping.size() + " fields to autofill.");
-        
+
         log.info("Returning {} field mappings", mapping.size());
         return ResponseEntity.ok(response);
     }
@@ -151,29 +180,33 @@ public class ExtensionController {
     /**
      * Get user's resume file data for extension to upload to job sites.
      * Returns base64-encoded file data along with filename and content type.
+     * Accepts either JWT auth OR email query param.
      */
     @GetMapping("/resume-file")
-    public ResponseEntity<Map<String, Object>> getResumeFile(HttpServletRequest httpRequest) {
-        User currentUser = getCurrentUser(httpRequest);
-        if (currentUser == null) {
+    public ResponseEntity<Map<String, Object>> getResumeFile(
+            @RequestParam(value = "email", required = false) String email,
+            HttpServletRequest httpRequest) {
+
+        String userEmail = getUserEmail(httpRequest, email);
+        if (userEmail == null) {
             return ResponseEntity.status(401).build();
         }
-        
-        log.info("Fetching resume file for extension upload, user: {}", currentUser.getEmail());
-        
-        return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(currentUser.getEmail())
-            .map(resume -> {
-                Map<String, Object> response = new HashMap<>();
-                response.put("fileName", resume.getFileName());
-                response.put("contentType", resume.getContentType());
-                response.put("fileData", resume.getFileData()); // Base64 encoded
-                response.put("fileSize", resume.getFileSize());
-                return ResponseEntity.ok(response);
-            })
-            .orElseGet(() -> {
-                log.warn("No resume found for user: {}", currentUser.getEmail());
-                return ResponseEntity.notFound().build();
-            });
+
+        log.info("Fetching resume file for extension upload, user: {}", userEmail);
+
+        return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(userEmail)
+                .map(resume -> {
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("fileName", resume.getFileName());
+                    response.put("contentType", resume.getContentType());
+                    response.put("fileData", resume.getFileData()); // Base64 encoded
+                    response.put("fileSize", resume.getFileSize());
+                    return ResponseEntity.ok(response);
+                })
+                .orElseGet(() -> {
+                    log.warn("No resume found for user: {}", userEmail);
+                    return ResponseEntity.notFound().build();
+                });
     }
 
     /**
@@ -191,18 +224,22 @@ public class ExtensionController {
 
     /**
      * Get user profile for the extension.
+     * Accepts either JWT auth OR email query param for manual connect.
      */
     @GetMapping("/profile")
-    public ResponseEntity<UserProfileDto> getProfile(HttpServletRequest httpRequest) {
-        User currentUser = getCurrentUser(httpRequest);
-        if (currentUser == null) {
+    public ResponseEntity<UserProfileDto> getProfile(
+            @RequestParam(value = "email", required = false) String email,
+            HttpServletRequest httpRequest) {
+
+        String userEmail = getUserEmail(httpRequest, email);
+        if (userEmail == null) {
             return ResponseEntity.status(401).build();
         }
-        
-        return userProfileRepository.findByEmail(currentUser.getEmail())
-            .map(this::toDto)
-            .map(ResponseEntity::ok)
-            .orElse(ResponseEntity.notFound().build());
+
+        return userProfileRepository.findByEmail(userEmail)
+                .map(this::toDto)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
@@ -214,12 +251,12 @@ public class ExtensionController {
         if (currentUser == null) {
             return ResponseEntity.status(401).build();
         }
-        
+
         log.info("Saving profile for user: {}", currentUser.getEmail());
-        
+
         UserProfileDocument doc = userProfileRepository.findByEmail(currentUser.getEmail())
-            .orElseGet(UserProfileDocument::new);
-        
+                .orElseGet(UserProfileDocument::new);
+
         // Update fields
         doc.setGoogleId(dto.getGoogleId());
         doc.setFirstName(dto.getFirstName());
@@ -255,7 +292,7 @@ public class ExtensionController {
         doc.setWillingToRelocate(dto.isWillingToRelocate());
         doc.setPreferredLocations(dto.getPreferredLocations());
         doc.setUpdatedAt(Instant.now());
-        
+
         UserProfileDocument saved = userProfileRepository.save(doc);
         log.info("Profile saved successfully for user: {}", currentUser.getEmail());
         return ResponseEntity.ok(toDto(saved));
@@ -307,23 +344,23 @@ public class ExtensionController {
      * The extension calls this when the user fills in a complex question.
      */
     @PostMapping("/learn-answer")
-    public ResponseEntity<LearnedAnswerDocument> learnAnswer(@RequestBody LearnAnswerRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<LearnedAnswerDocument> learnAnswer(@RequestBody LearnAnswerRequest request,
+            HttpServletRequest httpRequest) {
         User currentUser = getCurrentUser(httpRequest);
         if (currentUser == null) {
             return ResponseEntity.status(401).build();
         }
-        
-        log.info("Learning answer for user: {}, question: {}", 
-            currentUser.getEmail(), request.getQuestion());
-        
+
+        log.info("Learning answer for user: {}, question: {}",
+                currentUser.getEmail(), request.getQuestion());
+
         LearnedAnswerDocument learned = answerLearningService.learnAnswer(
-            currentUser.getEmail(),
-            request.getQuestion(),
-            request.getAnswer(),
-            request.getPlatform(),
-            request.getJobTitle()
-        );
-        
+                currentUser.getEmail(),
+                request.getQuestion(),
+                request.getAnswer(),
+                request.getPlatform(),
+                request.getJobTitle());
+
         return ResponseEntity.ok(learned);
     }
 
@@ -334,14 +371,14 @@ public class ExtensionController {
     public ResponseEntity<Map<String, Object>> suggestAnswer(
             @RequestParam(value = "question") String question,
             HttpServletRequest httpRequest) {
-        
+
         User currentUser = getCurrentUser(httpRequest);
         if (currentUser == null) {
             return ResponseEntity.status(401).build();
         }
-        
+
         Optional<LearnedAnswerDocument> answer = answerLearningService.findBestAnswer(currentUser.getEmail(), question);
-        
+
         Map<String, Object> response = new HashMap<>();
         if (answer.isPresent()) {
             response.put("found", true);
@@ -353,7 +390,7 @@ public class ExtensionController {
             response.put("found", false);
             response.put("category", answerLearningService.categorizeQuestion(question));
         }
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -386,7 +423,7 @@ public class ExtensionController {
         if (currentUser == null) {
             return ResponseEntity.status(401).build();
         }
-        
+
         return ResponseEntity.ok(answerLearningService.getUserAnswers(currentUser.getEmail()));
     }
 
@@ -399,15 +436,122 @@ public class ExtensionController {
         private String platform;
         private String jobTitle;
 
-        public String getUserEmail() { return userEmail; }
-        public void setUserEmail(String userEmail) { this.userEmail = userEmail; }
-        public String getQuestion() { return question; }
-        public void setQuestion(String question) { this.question = question; }
-        public String getAnswer() { return answer; }
-        public void setAnswer(String answer) { this.answer = answer; }
-        public String getPlatform() { return platform; }
-        public void setPlatform(String platform) { this.platform = platform; }
-        public String getJobTitle() { return jobTitle; }
-        public void setJobTitle(String jobTitle) { this.jobTitle = jobTitle; }
+        public String getUserEmail() {
+            return userEmail;
+        }
+
+        public void setUserEmail(String userEmail) {
+            this.userEmail = userEmail;
+        }
+
+        public String getQuestion() {
+            return question;
+        }
+
+        public void setQuestion(String question) {
+            this.question = question;
+        }
+
+        public String getAnswer() {
+            return answer;
+        }
+
+        public void setAnswer(String answer) {
+            this.answer = answer;
+        }
+
+        public String getPlatform() {
+            return platform;
+        }
+
+        public void setPlatform(String platform) {
+            this.platform = platform;
+        }
+
+        public String getJobTitle() {
+            return jobTitle;
+        }
+
+        public void setJobTitle(String jobTitle) {
+            this.jobTitle = jobTitle;
+        }
+    }
+
+    /**
+     * DTO for recording an application from the extension.
+     */
+    public static class RecordApplicationRequest {
+        private String jobTitle;
+        private String companyName;
+        private String jobUrl;
+        private String userEmail;
+
+        public String getJobTitle() {
+            return jobTitle;
+        }
+
+        public void setJobTitle(String jobTitle) {
+            this.jobTitle = jobTitle;
+        }
+
+        public String getCompanyName() {
+            return companyName;
+        }
+
+        public void setCompanyName(String companyName) {
+            this.companyName = companyName;
+        }
+
+        public String getJobUrl() {
+            return jobUrl;
+        }
+
+        public void setJobUrl(String jobUrl) {
+            this.jobUrl = jobUrl;
+        }
+
+        public String getUserEmail() {
+            return userEmail;
+        }
+
+        public void setUserEmail(String userEmail) {
+            this.userEmail = userEmail;
+        }
+    }
+
+    /**
+     * Record a job application submitted via the extension.
+     * Called when user fills and submits a job application.
+     */
+    @PostMapping("/record-application")
+    public ResponseEntity<Map<String, Object>> recordApplication(
+            @RequestBody RecordApplicationRequest request,
+            HttpServletRequest httpRequest) {
+
+        String userEmail = getUserEmail(httpRequest, request.getUserEmail());
+        if (userEmail == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        log.info("Recording application for user: {}, job: {} at {}",
+                userEmail, request.getJobTitle(), request.getCompanyName());
+
+        JobApplicationDocument application = new JobApplicationDocument();
+        application.setUserEmail(userEmail);
+        application.setJobTitle(request.getJobTitle() != null ? request.getJobTitle() : "Unknown Position");
+        application.setCompanyName(request.getCompanyName() != null ? request.getCompanyName() : "Unknown Company");
+        application.setJobUrl(request.getJobUrl());
+        application.setStatus("APPLIED");
+        application.setMatchScore(0.0);
+        application.setAppliedAt(LocalDateTime.now());
+
+        JobApplicationDocument saved = jobApplicationRepository.save(application);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("applicationId", saved.getId());
+        response.put("message", "Application recorded successfully");
+
+        return ResponseEntity.ok(response);
     }
 }

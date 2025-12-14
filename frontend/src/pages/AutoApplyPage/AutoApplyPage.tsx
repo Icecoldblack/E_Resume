@@ -1,91 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { API_BASE_URL } from '../../config';
 import './AutoApplyPage.css';
 
 type Application = {
   id: string;
   jobTitle: string;
-  company: string;
-  appliedDate: string;
+  companyName: string;
+  jobUrl: string;
+  appliedAt: string;
   matchScore: number;
-  salaryMin: number;
-  salaryMax: number;
-  location: string;
-  status: 'applied' | 'interview' | 'offer' | 'rejected';
+  status: string;
 };
-
-// Sample data matching the reference image
-const SAMPLE_APPLICATIONS: Application[] = [
-  {
-    id: '1',
-    jobTitle: 'Senior Software Engineer',
-    company: 'Google',
-    appliedDate: '12/5/2024',
-    matchScore: 95,
-    salaryMin: 150000,
-    salaryMax: 200000,
-    location: 'Mountain View, CA',
-    status: 'interview',
-  },
-  {
-    id: '2',
-    jobTitle: 'Product Manager',
-    company: 'Microsoft',
-    appliedDate: '12/4/2024',
-    matchScore: 88,
-    salaryMin: 140000,
-    salaryMax: 180000,
-    location: 'Redmond, WA',
-    status: 'applied',
-  },
-  {
-    id: '3',
-    jobTitle: 'UX Designer',
-    company: 'Apple',
-    appliedDate: '12/2/2024',
-    matchScore: 92,
-    salaryMin: 130000,
-    salaryMax: 170000,
-    location: 'Cupertino, CA',
-    status: 'interview',
-  },
-  {
-    id: '4',
-    jobTitle: 'Data Scientist',
-    company: 'Amazon',
-    appliedDate: '12/1/2024',
-    matchScore: 78,
-    salaryMin: 120000,
-    salaryMax: 160000,
-    location: 'Seattle, WA',
-    status: 'offer',
-  },
-  {
-    id: '5',
-    jobTitle: 'Frontend Developer',
-    company: 'Meta',
-    appliedDate: '11/28/2024',
-    matchScore: 85,
-    salaryMin: 110000,
-    salaryMax: 150000,
-    location: 'Menlo Park, CA',
-    status: 'rejected',
-  },
-  {
-    id: '6',
-    jobTitle: 'Backend Engineer',
-    company: 'Netflix',
-    appliedDate: '11/25/2024',
-    matchScore: 90,
-    salaryMin: 140000,
-    salaryMax: 190000,
-    location: 'Los Gatos, CA',
-    status: 'applied',
-  },
-];
 
 const FILTER_TABS = [
   { key: 'all', label: 'All' },
@@ -102,7 +31,32 @@ const AutoApplyPage: React.FC = () => {
   const [activeNav, setActiveNav] = useState('auto-apply');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
-  const [applications] = useState<Application[]>(SAMPLE_APPLICATIONS);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch real applications from API
+  useEffect(() => {
+    const fetchApplications = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch(`${API_BASE_URL}/api/apply/history`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (!response.ok) throw new Error('Failed to fetch');
+        const data = await response.json();
+        setApplications(data);
+      } catch (error) {
+        console.error('Error fetching applications:', error);
+        setApplications([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchApplications();
+  }, []);
 
   const handleNavClick = (nav: string, path: string) => {
     setActiveNav(nav);
@@ -337,7 +291,7 @@ const AutoApplyPage: React.FC = () => {
               <div className="app-details">
                 <div className="app-header">
                   <h3 className="app-title">{app.jobTitle}</h3>
-                  <span className="app-company">{app.company}</span>
+                  <span className="app-company">{app.companyName}</span>
                 </div>
 
                 <div className="app-meta">
@@ -350,7 +304,7 @@ const AutoApplyPage: React.FC = () => {
                         <line x1="8" y1="2" x2="8" y2="6" />
                         <line x1="3" y1="10" x2="21" y2="10" />
                       </svg>
-                      {app.appliedDate}
+                      {new Date(app.appliedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                   </div>
                   <div className="meta-item">
@@ -360,17 +314,17 @@ const AutoApplyPage: React.FC = () => {
                         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
                         <polyline points="17 6 23 6 23 12" />
                       </svg>
-                      {app.matchScore}%
+                      {app.matchScore || 0}%
                     </span>
                   </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Salary Range</span>
-                    <span className="meta-value">{formatSalary(app.salaryMin, app.salaryMax)}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Location</span>
-                    <span className="meta-value">{app.location}</span>
-                  </div>
+                  {app.jobUrl && (
+                    <div className="meta-item">
+                      <span className="meta-label">Link</span>
+                      <span className="meta-value">
+                        <a href={app.jobUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-color)' }}>View Job</a>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

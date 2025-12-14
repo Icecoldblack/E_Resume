@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const settingsBtn = document.getElementById('settings-btn');
     const learningProgress = document.getElementById('learning-progress');
     const learningText = document.getElementById('learning-text');
-    
+
     // Profile elements
     const avatar = document.getElementById('avatar');
     const profileName = document.getElementById('profile-name');
@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     autoApplyToggle.addEventListener('change', async () => {
         autoApplyEnabled = autoApplyToggle.checked;
         await chrome.storage.local.set({ autoApplyEnabled });
-        
+
         if (autoApplyEnabled) {
             autofillBtn.textContent = '🚀 Auto-Apply Now';
             showMessage('Auto-Apply enabled! Forms will be filled and submitted automatically.', 'success');
@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         syncBtn.disabled = true;
         syncBtn.classList.add('loading');
         syncBtn.textContent = 'Syncing...';
-        
+
         // First check if we have a stored email
         const { userEmail } = await chrome.storage.local.get(['userEmail']);
         if (userEmail) {
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             // Try to auto-connect from page
             await tryAutoConnect();
-            
+
             // If still not connected, check all EasePath tabs
             const { userEmail: emailAfterTry } = await chrome.storage.local.get(['userEmail']);
             if (!emailAfterTry) {
@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         try {
                             const response = await chrome.tabs.sendMessage(tab.id, { action: "get_user_from_page" });
                             if (response && response.email) {
-                                await fetchAndStoreProfile(response.email);
+                                await fetchAndStoreProfile(response.email, response.authToken);
                                 break;
                             }
                         } catch (e) {
@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         }
-        
+
         syncBtn.disabled = false;
         syncBtn.classList.remove('loading');
         syncBtn.textContent = '🔄 Sync with EasePath';
@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function init() {
         // Check if banner was dismissed
         const storage = await chrome.storage.local.get(['bannerDismissed', 'userEmail', 'userProfile', 'autoApplyEnabled', 'learningStats']);
-        
+
         if (storage.bannerDismissed) {
             featureBanner.style.display = 'none';
         }
@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             // Try to auto-connect from current tab or any EasePath tab
             await tryAutoConnect();
-            
+
             // If still not connected, search all tabs for EasePath
             const { userEmail } = await chrome.storage.local.get(['userEmail']);
             if (!userEmail) {
@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     }
-    
+
     async function searchForEasePathUser() {
         try {
             const tabs = await chrome.tabs.query({});
@@ -221,7 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     try {
                         const response = await chrome.tabs.sendMessage(tab.id, { action: "get_user_from_page" });
                         if (response && response.email) {
-                            await fetchAndStoreProfile(response.email);
+                            await fetchAndStoreProfile(response.email, response.authToken);
                             return true;
                         }
                     } catch (e) {
@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!tab) return;
 
         currentUrl = tab.url || '';
-        
+
         // Check if we can interact with this page
         if (currentUrl.startsWith('chrome://') || currentUrl.startsWith('chrome-extension://') || currentUrl.startsWith('about:')) {
             statsText.textContent = 'Cannot analyze this page';
@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     statsText.textContent = 'Ready to scan';
                     return;
                 }
-                
+
                 if (response && response.isJobApplication) {
                     const company = response.company || 'Unknown Company';
                     const jobTitle = response.jobTitle || 'Job Application';
@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             // First, try to get email from localStorage via content script on EasePath site
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            
+
             // Check if we're on the EasePath site
             if (tab && tab.url && (tab.url.includes('localhost:5173') || tab.url.includes('localhost:5174'))) {
                 // Try to get user info from the page
@@ -283,16 +283,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const response = await new Promise((resolve) => {
                         chrome.tabs.sendMessage(tab.id, { action: "get_user_from_page" }, resolve);
                     });
-                    
+
                     if (response && response.email) {
-                        await fetchAndStoreProfile(response.email);
+                        await fetchAndStoreProfile(response.email, response.authToken);
                         return;
                     }
                 } catch (e) {
                     console.log('Could not get user from page:', e);
                 }
             }
-            
+
             // If we have a stored email, try to fetch the profile
             const { userEmail } = await chrome.storage.local.get(['userEmail']);
             if (userEmail) {
@@ -302,34 +302,46 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Otherwise show not connected
             showNotConnectedState();
-            
+
         } catch (error) {
             console.error('Auto-connect failed:', error);
             showNotConnectedState();
         }
     }
 
-    async function fetchAndStoreProfile(email) {
+    async function fetchAndStoreProfile(email, authToken = null) {
         try {
-            const response = await fetch(`${API_BASE_URL}/profile?email=${encodeURIComponent(email)}`);
-            
+            // Try to get auth token from storage if not provided
+            if (!authToken) {
+                const storage = await chrome.storage.local.get(['authToken']);
+                authToken = storage.authToken;
+            }
+
+            const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+            // Include email as query param for fallback auth when no token
+            const response = await fetch(`${API_BASE_URL}/profile?email=${encodeURIComponent(email)}`, { headers });
+
             if (response.ok) {
                 userProfile = await response.json();
-                
-                // Store for future use
-                chrome.storage.local.set({ 
-                    userEmail: email, 
-                    userProfile: userProfile 
+
+                // Store for future use (including auth token)
+                chrome.storage.local.set({
+                    userEmail: email,
+                    userProfile: userProfile,
+                    authToken: authToken
                 });
-                
-                // Notify background script
-                chrome.runtime.sendMessage({ action: "set_user_email", email: email });
-                
+
+                // Notify background script with auth token
+                chrome.runtime.sendMessage({ action: "set_user_email", email: email, authToken: authToken });
+
                 showConnectedState();
-                
+
                 // Fetch learning stats
-                fetchLearningStats(email);
-                
+                fetchLearningStats(email, authToken);
+
+            } else if (response.status === 401) {
+                showNotConnectedState();
+                showMessage('Session expired. Please log in to EasePath and sync again.', 'warning');
             } else {
                 showNotConnectedState();
                 showMessage('Profile not found. Please complete setup on EasePath first.', 'warning');
@@ -341,9 +353,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function fetchLearningStats(email) {
+    async function fetchLearningStats(email, authToken = null) {
         try {
-            const response = await fetch(`${API_BASE_URL}/learning-stats?email=${encodeURIComponent(email)}`);
+            if (!authToken) {
+                const storage = await chrome.storage.local.get(['authToken']);
+                authToken = storage.authToken;
+            }
+            const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+            const response = await fetch(`${API_BASE_URL}/learning-stats`, { headers });
             if (response.ok) {
                 const stats = await response.json();
                 chrome.storage.local.set({ learningStats: stats });
@@ -356,21 +373,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateLearningUI(stats) {
         if (!stats) return;
-        
+
         const patternsLearned = stats.patternsLearned || 0;
         const maxPatterns = 100; // For progress visualization
         const progressPercent = Math.min((patternsLearned / maxPatterns) * 100, 100);
-        
+
         learningProgress.style.width = `${progressPercent}%`;
         learningText.textContent = `${patternsLearned} patterns learned`;
-        
+
         // Update success rate if available
         if (stats.successRate !== undefined) {
             const rate = Math.round(stats.successRate * 100);
             successRate.style.width = `${rate}%`;
             successText.textContent = `${rate}%`;
         }
-        
+
         // Update applications count
         if (stats.totalApplications !== undefined) {
             applicationsCount.textContent = stats.totalApplications;
@@ -382,7 +399,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         connected.classList.remove('hidden');
         profileNotConnected.classList.add('hidden');
         profileConnected.classList.remove('hidden');
-        
+
         updateProfileUI();
         updateResumeUI();
         analyzeCurrentPage();
@@ -393,7 +410,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         connected.classList.add('hidden');
         profileNotConnected.classList.remove('hidden');
         profileConnected.classList.add('hidden');
-        
+
         // Add manual email input option
         addManualConnectOption();
     }
@@ -401,7 +418,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function addManualConnectOption() {
         // Check if already added
         if (document.getElementById('manual-connect')) return;
-        
+
         const manualDiv = document.createElement('div');
         manualDiv.id = 'manual-connect';
         manualDiv.innerHTML = `
@@ -413,12 +430,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </button>
             </div>
         `;
-        
+
         notConnected.appendChild(manualDiv);
-        
+
         const connectBtn = document.getElementById('manual-connect-btn');
         const emailInput = document.getElementById('manual-email');
-        
+
         connectBtn.addEventListener('click', async () => {
             const email = emailInput.value.trim();
             if (email && email.includes('@')) {
@@ -431,7 +448,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showMessage('Please enter a valid email address.', 'warning');
             }
         });
-        
+
         // Allow enter key to submit
         emailInput.addEventListener('keypress', async (e) => {
             if (e.key === 'Enter') {
@@ -449,18 +466,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateProfileUI() {
         if (!userProfile) return;
-        
+
         // Avatar
         const initials = `${(userProfile.firstName || '?')[0]}${(userProfile.lastName || '')[0]}`.toUpperCase();
         avatar.textContent = initials;
-        
+
         // Name and email
         profileName.textContent = `${userProfile.firstName || ''} ${userProfile.lastName || ''}`.trim() || 'User';
         profileEmail.textContent = userProfile.email || '';
-        
+
         // Count filled fields
         let filledFields = 0;
-        const fieldKeys = ['firstName', 'lastName', 'email', 'phone', 'address', 'city', 'state', 
+        const fieldKeys = ['firstName', 'lastName', 'email', 'phone', 'address', 'city', 'state',
             'zipCode', 'country', 'linkedInUrl', 'githubUrl', 'university', 'major', 'highestDegree',
             'workExperience', 'skills'];
         fieldKeys.forEach(key => {
@@ -488,11 +505,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const originalText = autofillBtn.textContent;
         autofillBtn.textContent = '';
         statsText.textContent = 'Scanning page...';
-        
+
         try {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             currentUrl = tab.url;
-            
+
             // Check if we can inject scripts on this page
             if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('about:')) {
                 autofillBtn.disabled = false;
@@ -502,7 +519,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showMessage('Cannot autofill on this type of page.', 'warning');
                 return;
             }
-            
+
             // Try to inject content script first (in case it wasn't loaded)
             try {
                 await chrome.scripting.executeScript({
@@ -513,29 +530,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Script might already be injected, continue anyway
                 console.log('Script injection note:', injectError.message);
             }
-            
+
             // Small delay to let script initialize
             await new Promise(resolve => setTimeout(resolve, 100));
-            
+
             // Send autofill request with auto-submit flag
-            chrome.tabs.sendMessage(tab.id, { 
-                action: "autofill", 
-                autoSubmit: autoApplyEnabled 
+            chrome.tabs.sendMessage(tab.id, {
+                action: "autofill",
+                autoSubmit: autoApplyEnabled
             }, (response) => {
                 autofillBtn.disabled = false;
                 autofillBtn.classList.remove('loading');
                 autofillBtn.textContent = originalText;
-                
+
                 if (chrome.runtime.lastError) {
                     statsText.textContent = 'Error occurred';
                     showMessage('Could not communicate with the page. Try refreshing.', 'error');
                     console.error(chrome.runtime.lastError);
                     return;
                 }
-                
+
                 if (response && response.error) {
                     statsText.textContent = 'Failed';
-                    
+
                     if (response.needsLogin) {
                         showMessage('Please connect your EasePath account first.', 'warning');
                     } else if (response.needsProfile) {
@@ -547,16 +564,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     return;
                 }
-                
+
                 if (response && response.status === 'success') {
                     const filledCount = response.filledCount || 'some';
                     const essayCount = response.essayQuestions || 0;
                     const resumeUploaded = response.resumeUploaded;
                     const autoSubmitted = response.autoSubmitted;
-                    
+
                     // Update learning stats
                     chrome.runtime.sendMessage({ action: "increment_learning" });
-                    
+
                     if (autoSubmitted) {
                         statsText.textContent = `Application submitted! 🎉`;
                         showMessage(`✅ Filled ${filledCount} fields and submitted automatically!${resumeUploaded ? ' Resume uploaded!' : ''}`, 'success');
@@ -586,7 +603,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         messageArea.textContent = text;
         messageArea.className = 'message-area ' + (type || '');
         messageArea.classList.remove('hidden');
-        
+
         // Auto-hide success messages after 5 seconds
         if (type === 'success') {
             setTimeout(() => {

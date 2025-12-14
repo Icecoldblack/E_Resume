@@ -1,84 +1,90 @@
 // Configuration
 const API_BASE_URL = 'http://localhost:8080/api/extension';
 
-// Store user email (set from popup after login)
+// Store user credentials (set from popup after login)
 let userEmail = null;
+let authToken = null;
 
-// Listen for messages from popup to set user email
-chrome.storage.local.get(['userEmail'], (result) => {
+// Load stored credentials on startup
+chrome.storage.local.get(['userEmail', 'authToken'], (result) => {
     userEmail = result.userEmail;
-    console.log("Background: Loaded user email:", userEmail);
+    authToken = result.authToken;
+    console.log("Background: Loaded user email:", userEmail, "token:", authToken ? "present" : "none");
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    
-    // Handle setting user email from popup
+
+    // Handle setting user email and auth token from popup
     if (request.action === "set_user_email") {
         userEmail = request.email;
-        chrome.storage.local.set({ userEmail: request.email });
-        console.log("Background: User email set to:", userEmail);
+        authToken = request.authToken || null;
+        chrome.storage.local.set({ userEmail: request.email, authToken: request.authToken });
+        console.log("Background: User email set to:", userEmail, "token:", authToken ? "present" : "none");
         sendResponse({ status: 'ok' });
         return true;
     }
-    
+
     // Handle autofill request (and optionally auto-submit)
     if (request.action === "fetch_ai_mapping") {
         console.log("Background: Processing autofill request for", request.url);
-        
+
         if (!userEmail) {
             console.error("Background: No user email set - user must connect account first");
-            sendResponse({ 
-                mapping: {}, 
+            sendResponse({
+                mapping: {},
                 error: "Please connect your EasePath account first",
-                needsLogin: true 
+                needsLogin: true
             });
             return true;
         }
-        
+
         // Call the real backend API - NO FALLBACK, must use real data
         const payload = {
             url: request.url,
             userEmail: userEmail,
             formFields: request.formData
         };
-        
+
         fetch(`${API_BASE_URL}/autofill`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+            },
             body: JSON.stringify(payload)
         })
-        .then(res => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.json();
-        })
-        .then(data => {
-            console.log("Background: Received mapping from API:", data);
-            if (Object.keys(data.mapping || {}).length === 0) {
-                sendResponse({ 
-                    mapping: {}, 
-                    error: "No profile data found. Please set up your profile in the EasePath dashboard.",
-                    needsProfile: true
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                console.log("Background: Received mapping from API:", data);
+                if (Object.keys(data.mapping || {}).length === 0) {
+                    sendResponse({
+                        mapping: {},
+                        error: "No profile data found. Please set up your profile in the EasePath dashboard.",
+                        needsProfile: true
+                    });
+                } else {
+                    sendResponse({
+                        mapping: data.mapping,
+                        confidence: data.confidence,
+                        autoSubmit: request.autoSubmit || false
+                    });
+                }
+            })
+            .catch(err => {
+                console.error("Background: API error:", err.message);
+                sendResponse({
+                    mapping: {},
+                    error: "Could not connect to EasePath server. Is it running?",
+                    serverError: true
                 });
-            } else {
-                sendResponse({ 
-                    mapping: data.mapping, 
-                    confidence: data.confidence,
-                    autoSubmit: request.autoSubmit || false
-                });
-            }
-        })
-        .catch(err => {
-            console.error("Background: API error:", err.message);
-            sendResponse({ 
-                mapping: {}, 
-                error: "Could not connect to EasePath server. Is it running?",
-                serverError: true
             });
-        });
-        
+
         return true; // Keep channel open for async response
     }
-    
+
     // Handle learning answers from user submissions
     if (request.action === "learn_answers") {
         if (!userEmail) {
@@ -86,17 +92,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             sendResponse({ status: 'error', message: 'Not logged in' });
             return true;
         }
-        
+
         console.log("Background: Learning", request.answers.length, "answers");
-        
+
         // Extract platform from URL
         const platform = extractPlatform(request.url);
-        
+
         // Send each answer to the backend for learning
         request.answers.forEach(item => {
             fetch(`${API_BASE_URL}/learn-answer`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+                },
                 body: JSON.stringify({
                     userEmail: userEmail,
                     question: item.question,
@@ -105,24 +114,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     jobTitle: '' // Could be extracted from page if available
                 })
             })
-            .then(res => res.json())
-            .then(data => console.log("Background: Learned answer:", data))
-            .catch(err => console.error("Background: Failed to learn answer:", err));
+                .then(res => res.json())
+                .then(data => console.log("Background: Learned answer:", data))
+                .catch(err => console.error("Background: Failed to learn answer:", err));
         });
-        
+
         sendResponse({ status: 'ok' });
         return true;
     }
-    
+
     // Handle success feedback
     if (request.action === "record_success") {
         fetch(`${API_BASE_URL}/feedback/success?url=${encodeURIComponent(request.url)}`, {
-            method: 'POST'
+            method: 'POST',
+            headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {}
         }).catch(err => console.error("Background: Failed to record success:", err));
         sendResponse({ status: 'ok' });
         return true;
     }
-    
+
     // Handle correction feedback
     if (request.action === "record_correction") {
         const params = new URLSearchParams({
@@ -131,20 +141,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             correctProfileField: request.correctProfileField
         });
         fetch(`${API_BASE_URL}/feedback/correction?${params}`, {
-            method: 'POST'
+            method: 'POST',
+            headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {}
         }).catch(err => console.error("Background: Failed to record correction:", err));
         sendResponse({ status: 'ok' });
         return true;
     }
-    
+
     // Handle resume file request (for uploading to job sites)
     if (request.action === "get_resume_file") {
         if (!userEmail) {
             sendResponse({ error: "Not logged in" });
             return true;
         }
-        
-        fetch(`${API_BASE_URL}/resume-file?email=${encodeURIComponent(userEmail)}`)
+
+        // Include email param for fallback auth when no token
+        fetch(`${API_BASE_URL}/resume-file?email=${encodeURIComponent(userEmail)}`, {
+            headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {}
+        })
             .then(res => {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return res.json();
@@ -162,7 +176,45 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 console.error("Background: Failed to get resume:", err);
                 sendResponse({ error: "Could not fetch resume" });
             });
-        
+
+        return true; // Keep channel open for async
+    }
+
+    // Handle recording a job application submission
+    if (request.action === "record_application") {
+        if (!userEmail) {
+            sendResponse({ error: "Not logged in" });
+            return true;
+        }
+
+        console.log("Background: Recording application:", request.jobTitle, "at", request.companyName);
+
+        fetch(`${API_BASE_URL}/record-application`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+            },
+            body: JSON.stringify({
+                userEmail: userEmail,
+                jobTitle: request.jobTitle,
+                companyName: request.companyName,
+                jobUrl: request.jobUrl
+            })
+        })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                console.log("Background: Application recorded:", data);
+                sendResponse({ success: true, applicationId: data.applicationId });
+            })
+            .catch(err => {
+                console.error("Background: Failed to record application:", err);
+                sendResponse({ error: "Could not record application" });
+            });
+
         return true; // Keep channel open for async
     }
 });
