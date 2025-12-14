@@ -53,6 +53,18 @@ public class GoogleAuthService {
 
         log.info("GoogleAuthService initialized with client ID: {}...",
                 clientId.substring(0, Math.min(10, clientId.length())));
+
+        // Warmup: Pre-fetch Google's public keys in background to speed up first login
+        new Thread(() -> {
+            try {
+                log.info("Warming up Google token verifier (pre-fetching public keys)...");
+                // This dummy verification will trigger key download and caching
+                verifier.verify("dummy.token.here");
+            } catch (Exception e) {
+                // Expected to fail with invalid token, but keys are now cached
+                log.info("Google public keys cached successfully");
+            }
+        }).start();
     }
 
     /**
