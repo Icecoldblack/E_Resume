@@ -6,6 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import './DashboardPage.css';
 
+
 interface JobApplication {
   id: string;
   jobTitle: string;
