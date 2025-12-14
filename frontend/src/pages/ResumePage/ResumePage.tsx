@@ -45,6 +45,9 @@ const ResumePage: React.FC = () => {
   const [viewingResume, setViewingResume] = useState(false);
   const [viewingResumeUrl, setViewingResumeUrl] = useState<string | null>(null);
 
+  // Upload quota (max 3 uploads per 3 days)
+  const [remainingUploads, setRemainingUploads] = useState<number>(3);
+
   useEffect(() => {
     fetchCurrentResume();
   }, []);
@@ -74,6 +77,11 @@ const ResumePage: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('Resume data received:', data);
+
+        // Update remaining uploads quota
+        if (data.remainingUploads !== undefined) {
+          setRemainingUploads(data.remainingUploads);
+        }
 
         if (data && data.fileName) {
           setCurrentResume(data);
@@ -174,7 +182,16 @@ const ResumePage: React.FC = () => {
         setResumeFile(null);
         const fileInput = document.getElementById('resume-upload') as HTMLInputElement;
         if (fileInput) fileInput.value = '';
+        // Update remaining uploads from response
+        if (result.remainingUploads !== undefined) {
+          setRemainingUploads(result.remainingUploads);
+        }
         fetchCurrentResume();
+      } else if (response.status === 429) {
+        // Quota exceeded
+        const errorData = await response.json();
+        setResumeMessage({ type: 'error', text: errorData.error || 'Upload limit reached. You can only upload 3 resumes every 3 days.' });
+        setRemainingUploads(0);
       } else {
         let errorMessage = 'Failed to upload resume';
         try {
@@ -573,6 +590,20 @@ const ResumePage: React.FC = () => {
                   {resumeMessage.type === 'success' ? '✓' : '⚠'} {resumeMessage.text}
                 </div>
               )}
+
+              {/* Upload Quota Display */}
+              <div className={`upload-quota ${remainingUploads === 0 ? 'quota-exhausted' : ''}`}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>
+                  {remainingUploads === 0
+                    ? 'No uploads remaining. Resets in 3 days.'
+                    : `${remainingUploads} upload${remainingUploads !== 1 ? 's' : ''} remaining (3 per 3 days)`
+                  }
+                </span>
+              </div>
             </motion.div>
 
             {/* My Resumes Section */}

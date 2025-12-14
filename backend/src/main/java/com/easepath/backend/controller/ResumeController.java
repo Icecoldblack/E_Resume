@@ -109,6 +109,19 @@ public class ResumeController {
         }
 
         try {
+            // Check upload quota (max 3 uploads per 3 days)
+            var profileOpt = userProfileRepository.findByEmail(actualEmail);
+            if (profileOpt.isPresent()) {
+                var profile = profileOpt.get();
+                int remaining = profile.getRemainingUploads();
+                if (remaining <= 0) {
+                    log.warn("User {} exceeded upload quota", actualEmail);
+                    return ResponseEntity.status(429).body(Map.of(
+                            "error", "Upload limit reached. You can only upload 3 resumes every 3 days.",
+                            "remainingUploads", 0));
+                }
+            }
+
             // Delete ALL existing resumes for this user (ensures no duplicates)
             List<ResumeDocument> existingResumes = resumeRepository.findAllByUserEmail(actualEmail);
             if (!existingResumes.isEmpty()) {
@@ -127,19 +140,24 @@ public class ResumeController {
 
             resumeRepository.save(resumeDoc);
 
-            // Update user profile with resume filename
-            userProfileRepository.findByEmail(actualEmail).ifPresent(profile -> {
+            // Update user profile with resume filename and record upload
+            int remainingUploads = 3;
+            if (profileOpt.isPresent()) {
+                var profile = profileOpt.get();
                 profile.setResumeFileName(file.getOriginalFilename());
                 profile.setUpdatedAt(Instant.now());
+                int usedCount = profile.recordResumeUpload();
+                remainingUploads = Math.max(0, 3 - usedCount);
                 userProfileRepository.save(profile);
-            });
+            }
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("fileName", file.getOriginalFilename());
             response.put("message", "Resume uploaded successfully");
+            response.put("remainingUploads", remainingUploads);
 
-            log.info("Resume uploaded successfully for user: {}", actualEmail);
+            log.info("Resume uploaded successfully for user: {}, remaining uploads: {}", actualEmail, remainingUploads);
             return ResponseEntity.ok(response);
 
         } catch (IOException e) {
@@ -187,6 +205,15 @@ public class ResumeController {
         }
 
         String userEmail = currentUser.getEmail();
+
+        // Get remaining uploads from profile
+        int remainingUploads = 3;
+        var profileOpt = userProfileRepository.findByEmail(userEmail);
+        if (profileOpt.isPresent()) {
+            remainingUploads = profileOpt.get().getRemainingUploads();
+        }
+        final int finalRemainingUploads = remainingUploads;
+
         return resumeRepository.findTopByUserEmailOrderByCreatedAtDesc(userEmail)
                 .map(resume -> {
                     Map<String, Object> response = new HashMap<>();
@@ -194,9 +221,15 @@ public class ResumeController {
                     response.put("contentType", resume.getContentType());
                     response.put("fileSize", resume.getFileSize());
                     response.put("uploadedAt", resume.getCreatedAt().toString());
+                    response.put("remainingUploads", finalRemainingUploads);
                     return ResponseEntity.ok(response);
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElseGet(() -> {
+                    // No resume yet, but still return remaining uploads
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("remainingUploads", finalRemainingUploads);
+                    return ResponseEntity.ok(response);
+                });
     }
 
     /**

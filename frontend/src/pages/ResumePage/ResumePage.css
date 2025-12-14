@@ -404,6 +404,31 @@
   color: #f85149;
 }
 
+/* Upload Quota Display */
+.upload-quota {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 10px 16px;
+  background: rgba(88, 166, 255, 0.1);
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #58a6ff;
+}
+
+.upload-quota svg {
+  flex-shrink: 0;
+}
+
+.upload-quota.quota-exhausted {
+  background: rgba(248, 81, 73, 0.1);
+  border-color: rgba(248, 81, 73, 0.2);
+  color: #f85149;
+}
+
 /* My Resumes Section */
 .resumes-section {
   background: rgba(22, 27, 35, 0.6);

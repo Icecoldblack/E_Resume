@@ -1,6 +1,8 @@
 package com.easepath.backend.model;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.annotation.Id;
@@ -15,28 +17,28 @@ public class UserProfileDocument {
 
     @Id
     private String id;
-    
+
     // Google OAuth subject ID (links to authenticated user)
     private String googleId;
-    
+
     // Basic Info
     private String firstName;
     private String lastName;
     private String email;
     private String phone;
-    
+
     // Professional Links
     private String linkedInUrl;
     private String githubUrl;
     private String portfolioUrl;
-    
+
     // Address
     private String address;
     private String city;
     private String state;
     private String zipCode;
     private String country;
-    
+
     // Work Authorization
     private String workAuthorization;
     private boolean requiresSponsorship;
@@ -44,39 +46,42 @@ public class UserProfileDocument {
     private boolean hasWorkVisa;
     private String visaType; // H1B, OPT, etc.
     private String visaExpirationDate;
-    
+
     // Onboarding Status
     private boolean onboardingCompleted;
-    
+
     // Disability/Veteran Status (optional, for EEO)
     private String veteranStatus; // "Yes", "No", "Prefer not to say"
     private String disabilityStatus; // "Yes", "No", "Prefer not to say"
     private String gender; // For EEO
     private String ethnicity; // For EEO
     private String lgbtqIdentity; // "Yes", "No", "Prefer not to say"
-    
+
     // Availability
     private String availableStartDate;
     private boolean willingToRelocate;
     private String preferredLocations; // Comma-separated
-    
+
     // Job Preferences
     private String desiredSalary;
     private String desiredJobTitle;
     private String yearsOfExperience;
-    
+
     // Education
     private String highestDegree;
     private String university;
     private String graduationYear;
     private String major;
-    
+
     // Resume
     private String resumeFileName;
-    
+
     // Additional fields as key-value pairs for flexibility
     private Map<String, String> customFields;
-    
+
+    // Resume upload quota tracking (max 3 uploads per 3 days)
+    private List<Instant> resumeUploadTimestamps;
+
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -86,123 +91,365 @@ public class UserProfileDocument {
     }
 
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() {
+        return id;
+    }
 
-    public String getGoogleId() { return googleId; }
-    public void setGoogleId(String googleId) { this.googleId = googleId; }
+    public void setId(String id) {
+        this.id = id;
+    }
 
-    public String getFirstName() { return firstName; }
-    public void setFirstName(String firstName) { this.firstName = firstName; }
+    public String getGoogleId() {
+        return googleId;
+    }
 
-    public String getLastName() { return lastName; }
-    public void setLastName(String lastName) { this.lastName = lastName; }
+    public void setGoogleId(String googleId) {
+        this.googleId = googleId;
+    }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public String getFirstName() {
+        return firstName;
+    }
 
-    public String getPhone() { return phone; }
-    public void setPhone(String phone) { this.phone = phone; }
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
 
-    public String getLinkedInUrl() { return linkedInUrl; }
-    public void setLinkedInUrl(String linkedInUrl) { this.linkedInUrl = linkedInUrl; }
+    public String getLastName() {
+        return lastName;
+    }
 
-    public String getGithubUrl() { return githubUrl; }
-    public void setGithubUrl(String githubUrl) { this.githubUrl = githubUrl; }
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
 
-    public String getPortfolioUrl() { return portfolioUrl; }
-    public void setPortfolioUrl(String portfolioUrl) { this.portfolioUrl = portfolioUrl; }
+    public String getEmail() {
+        return email;
+    }
 
-    public String getAddress() { return address; }
-    public void setAddress(String address) { this.address = address; }
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-    public String getCity() { return city; }
-    public void setCity(String city) { this.city = city; }
+    public String getPhone() {
+        return phone;
+    }
 
-    public String getState() { return state; }
-    public void setState(String state) { this.state = state; }
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
 
-    public String getZipCode() { return zipCode; }
-    public void setZipCode(String zipCode) { this.zipCode = zipCode; }
+    public String getLinkedInUrl() {
+        return linkedInUrl;
+    }
 
-    public String getCountry() { return country; }
-    public void setCountry(String country) { this.country = country; }
+    public void setLinkedInUrl(String linkedInUrl) {
+        this.linkedInUrl = linkedInUrl;
+    }
 
-    public String getWorkAuthorization() { return workAuthorization; }
-    public void setWorkAuthorization(String workAuthorization) { this.workAuthorization = workAuthorization; }
+    public String getGithubUrl() {
+        return githubUrl;
+    }
 
-    public boolean isRequiresSponsorship() { return requiresSponsorship; }
-    public void setRequiresSponsorship(boolean requiresSponsorship) { this.requiresSponsorship = requiresSponsorship; }
+    public void setGithubUrl(String githubUrl) {
+        this.githubUrl = githubUrl;
+    }
 
-    public boolean isUsCitizen() { return isUsCitizen; }
-    public void setUsCitizen(boolean usCitizen) { isUsCitizen = usCitizen; }
+    public String getPortfolioUrl() {
+        return portfolioUrl;
+    }
 
-    public boolean isHasWorkVisa() { return hasWorkVisa; }
-    public void setHasWorkVisa(boolean hasWorkVisa) { this.hasWorkVisa = hasWorkVisa; }
+    public void setPortfolioUrl(String portfolioUrl) {
+        this.portfolioUrl = portfolioUrl;
+    }
 
-    public String getVisaType() { return visaType; }
-    public void setVisaType(String visaType) { this.visaType = visaType; }
+    public String getAddress() {
+        return address;
+    }
 
-    public String getVisaExpirationDate() { return visaExpirationDate; }
-    public void setVisaExpirationDate(String visaExpirationDate) { this.visaExpirationDate = visaExpirationDate; }
+    public void setAddress(String address) {
+        this.address = address;
+    }
 
-    public boolean isOnboardingCompleted() { return onboardingCompleted; }
-    public void setOnboardingCompleted(boolean onboardingCompleted) { this.onboardingCompleted = onboardingCompleted; }
+    public String getCity() {
+        return city;
+    }
 
-    public String getVeteranStatus() { return veteranStatus; }
-    public void setVeteranStatus(String veteranStatus) { this.veteranStatus = veteranStatus; }
+    public void setCity(String city) {
+        this.city = city;
+    }
 
-    public String getDisabilityStatus() { return disabilityStatus; }
-    public void setDisabilityStatus(String disabilityStatus) { this.disabilityStatus = disabilityStatus; }
+    public String getState() {
+        return state;
+    }
 
-    public String getGender() { return gender; }
-    public void setGender(String gender) { this.gender = gender; }
+    public void setState(String state) {
+        this.state = state;
+    }
 
-    public String getEthnicity() { return ethnicity; }
-    public void setEthnicity(String ethnicity) { this.ethnicity = ethnicity; }
+    public String getZipCode() {
+        return zipCode;
+    }
 
-    public String getLgbtqIdentity() { return lgbtqIdentity; }
-    public void setLgbtqIdentity(String lgbtqIdentity) { this.lgbtqIdentity = lgbtqIdentity; }
+    public void setZipCode(String zipCode) {
+        this.zipCode = zipCode;
+    }
 
-    public String getAvailableStartDate() { return availableStartDate; }
-    public void setAvailableStartDate(String availableStartDate) { this.availableStartDate = availableStartDate; }
+    public String getCountry() {
+        return country;
+    }
 
-    public boolean isWillingToRelocate() { return willingToRelocate; }
-    public void setWillingToRelocate(boolean willingToRelocate) { this.willingToRelocate = willingToRelocate; }
+    public void setCountry(String country) {
+        this.country = country;
+    }
 
-    public String getPreferredLocations() { return preferredLocations; }
-    public void setPreferredLocations(String preferredLocations) { this.preferredLocations = preferredLocations; }
+    public String getWorkAuthorization() {
+        return workAuthorization;
+    }
 
-    public String getDesiredSalary() { return desiredSalary; }
-    public void setDesiredSalary(String desiredSalary) { this.desiredSalary = desiredSalary; }
+    public void setWorkAuthorization(String workAuthorization) {
+        this.workAuthorization = workAuthorization;
+    }
 
-    public String getDesiredJobTitle() { return desiredJobTitle; }
-    public void setDesiredJobTitle(String desiredJobTitle) { this.desiredJobTitle = desiredJobTitle; }
+    public boolean isRequiresSponsorship() {
+        return requiresSponsorship;
+    }
 
-    public String getYearsOfExperience() { return yearsOfExperience; }
-    public void setYearsOfExperience(String yearsOfExperience) { this.yearsOfExperience = yearsOfExperience; }
+    public void setRequiresSponsorship(boolean requiresSponsorship) {
+        this.requiresSponsorship = requiresSponsorship;
+    }
 
-    public String getHighestDegree() { return highestDegree; }
-    public void setHighestDegree(String highestDegree) { this.highestDegree = highestDegree; }
+    public boolean isUsCitizen() {
+        return isUsCitizen;
+    }
 
-    public String getUniversity() { return university; }
-    public void setUniversity(String university) { this.university = university; }
+    public void setUsCitizen(boolean usCitizen) {
+        isUsCitizen = usCitizen;
+    }
 
-    public String getGraduationYear() { return graduationYear; }
-    public void setGraduationYear(String graduationYear) { this.graduationYear = graduationYear; }
+    public boolean isHasWorkVisa() {
+        return hasWorkVisa;
+    }
 
-    public String getMajor() { return major; }
-    public void setMajor(String major) { this.major = major; }
+    public void setHasWorkVisa(boolean hasWorkVisa) {
+        this.hasWorkVisa = hasWorkVisa;
+    }
 
-    public String getResumeFileName() { return resumeFileName; }
-    public void setResumeFileName(String resumeFileName) { this.resumeFileName = resumeFileName; }
+    public String getVisaType() {
+        return visaType;
+    }
 
-    public Map<String, String> getCustomFields() { return customFields; }
-    public void setCustomFields(Map<String, String> customFields) { this.customFields = customFields; }
+    public void setVisaType(String visaType) {
+        this.visaType = visaType;
+    }
 
-    public Instant getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+    public String getVisaExpirationDate() {
+        return visaExpirationDate;
+    }
 
-    public Instant getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+    public void setVisaExpirationDate(String visaExpirationDate) {
+        this.visaExpirationDate = visaExpirationDate;
+    }
+
+    public boolean isOnboardingCompleted() {
+        return onboardingCompleted;
+    }
+
+    public void setOnboardingCompleted(boolean onboardingCompleted) {
+        this.onboardingCompleted = onboardingCompleted;
+    }
+
+    public String getVeteranStatus() {
+        return veteranStatus;
+    }
+
+    public void setVeteranStatus(String veteranStatus) {
+        this.veteranStatus = veteranStatus;
+    }
+
+    public String getDisabilityStatus() {
+        return disabilityStatus;
+    }
+
+    public void setDisabilityStatus(String disabilityStatus) {
+        this.disabilityStatus = disabilityStatus;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
+    public String getEthnicity() {
+        return ethnicity;
+    }
+
+    public void setEthnicity(String ethnicity) {
+        this.ethnicity = ethnicity;
+    }
+
+    public String getLgbtqIdentity() {
+        return lgbtqIdentity;
+    }
+
+    public void setLgbtqIdentity(String lgbtqIdentity) {
+        this.lgbtqIdentity = lgbtqIdentity;
+    }
+
+    public String getAvailableStartDate() {
+        return availableStartDate;
+    }
+
+    public void setAvailableStartDate(String availableStartDate) {
+        this.availableStartDate = availableStartDate;
+    }
+
+    public boolean isWillingToRelocate() {
+        return willingToRelocate;
+    }
+
+    public void setWillingToRelocate(boolean willingToRelocate) {
+        this.willingToRelocate = willingToRelocate;
+    }
+
+    public String getPreferredLocations() {
+        return preferredLocations;
+    }
+
+    public void setPreferredLocations(String preferredLocations) {
+        this.preferredLocations = preferredLocations;
+    }
+
+    public String getDesiredSalary() {
+        return desiredSalary;
+    }
+
+    public void setDesiredSalary(String desiredSalary) {
+        this.desiredSalary = desiredSalary;
+    }
+
+    public String getDesiredJobTitle() {
+        return desiredJobTitle;
+    }
+
+    public void setDesiredJobTitle(String desiredJobTitle) {
+        this.desiredJobTitle = desiredJobTitle;
+    }
+
+    public String getYearsOfExperience() {
+        return yearsOfExperience;
+    }
+
+    public void setYearsOfExperience(String yearsOfExperience) {
+        this.yearsOfExperience = yearsOfExperience;
+    }
+
+    public String getHighestDegree() {
+        return highestDegree;
+    }
+
+    public void setHighestDegree(String highestDegree) {
+        this.highestDegree = highestDegree;
+    }
+
+    public String getUniversity() {
+        return university;
+    }
+
+    public void setUniversity(String university) {
+        this.university = university;
+    }
+
+    public String getGraduationYear() {
+        return graduationYear;
+    }
+
+    public void setGraduationYear(String graduationYear) {
+        this.graduationYear = graduationYear;
+    }
+
+    public String getMajor() {
+        return major;
+    }
+
+    public void setMajor(String major) {
+        this.major = major;
+    }
+
+    public String getResumeFileName() {
+        return resumeFileName;
+    }
+
+    public void setResumeFileName(String resumeFileName) {
+        this.resumeFileName = resumeFileName;
+    }
+
+    public Map<String, String> getCustomFields() {
+        return customFields;
+    }
+
+    public void setCustomFields(Map<String, String> customFields) {
+        this.customFields = customFields;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public List<Instant> getResumeUploadTimestamps() {
+        return resumeUploadTimestamps;
+    }
+
+    public void setResumeUploadTimestamps(List<Instant> resumeUploadTimestamps) {
+        this.resumeUploadTimestamps = resumeUploadTimestamps;
+    }
+
+    /**
+     * Add a resume upload timestamp and clean up old ones (older than 3 days).
+     * Returns the count of uploads in the last 3 days after adding.
+     */
+    public int recordResumeUpload() {
+        if (this.resumeUploadTimestamps == null) {
+            this.resumeUploadTimestamps = new ArrayList<>();
+        }
+        Instant now = Instant.now();
+        Instant threeDaysAgo = now.minus(java.time.Duration.ofDays(3));
+
+        // Remove timestamps older than 3 days
+        this.resumeUploadTimestamps.removeIf(ts -> ts.isBefore(threeDaysAgo));
+
+        // Add the new upload timestamp
+        this.resumeUploadTimestamps.add(now);
+
+        return this.resumeUploadTimestamps.size();
+    }
+
+    /**
+     * Get the number of uploads remaining in the current 3-day window.
+     */
+    public int getRemainingUploads() {
+        if (this.resumeUploadTimestamps == null) {
+            return 3;
+        }
+        Instant threeDaysAgo = Instant.now().minus(java.time.Duration.ofDays(3));
+        long recentUploads = this.resumeUploadTimestamps.stream()
+                .filter(ts -> ts.isAfter(threeDaysAgo))
+                .count();
+        return Math.max(0, 3 - (int) recentUploads);
+    }
 }
