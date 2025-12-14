@@ -18,7 +18,7 @@ const HomePage: React.FC = () => {
     if (response.credential) {
       try {
         const decoded: any = jwtDecode(response.credential);
-        
+
         // Check if user has completed onboarding by fetching from backend
         let onboardingCompleted = false;
         try {
@@ -32,7 +32,10 @@ const HomePage: React.FC = () => {
         } catch (err) {
           console.log('Could not fetch profile, will check onboarding');
         }
-        
+
+        // Save the raw token for API requests
+        localStorage.setItem('auth_token', response.credential);
+
         login({
           email: decoded.email,
           name: decoded.name,
@@ -40,7 +43,7 @@ const HomePage: React.FC = () => {
           googleId: decoded.sub,
           onboardingCompleted: onboardingCompleted
         });
-        
+
         // Navigate based on onboarding status
         if (onboardingCompleted) {
           navigate('/dashboard');
@@ -61,70 +64,70 @@ const HomePage: React.FC = () => {
     console.log('All letters have animated!');
   };
 
-const items = [
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+  const items = [
+    'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
 
-  'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
+    'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
 
-  'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
+    'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
 
-  'https://cloudfront-us-east-2.images.arcpublishing.com/reuters/ML434ZX7U5LBHCU4WN5K3W7BZQ.jpg',
+    'https://cloudfront-us-east-2.images.arcpublishing.com/reuters/ML434ZX7U5LBHCU4WN5K3W7BZQ.jpg',
 
-  'https://nintendosoup.com/wp-content/uploads/2024/06/Nintendo-HQ-Red-1038x576.jpg',
+    'https://nintendosoup.com/wp-content/uploads/2024/06/Nintendo-HQ-Red-1038x576.jpg',
 
-  'https://helios-i.mashable.com/imagery/articles/025DOuFcnh7IGdQC0EYie0I/images-4.fill.size_800x599.v1675105689.jpg',
-  
-  'https://images.unsplash.com/photo-1508780709619-79562169bc64?q=80&w=3870&auto=format&fit=crop',
+    'https://helios-i.mashable.com/imagery/articles/025DOuFcnh7IGdQC0EYie0I/images-4.fill.size_800x599.v1675105689.jpg',
 
-  'https://images.unsplash.com/photo-1537432376769-00a63d6c07f2?q=80&w=3870&auto=format&fit=crop',
- 
-  'https://thebrandhopper.com/wp-content/uploads/2023/03/jp-morgan-chase-title-1024x553.jpg',
- 
-  'https://images.tech.co/wp-content/uploads/2022/03/31082824/AdobeStock_303541183_Editorial_Use_Only-min-708x400.jpeg',
+    'https://images.unsplash.com/photo-1508780709619-79562169bc64?q=80&w=3870&auto=format&fit=crop',
 
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1537432376769-00a63d6c07f2?q=80&w=3870&auto=format&fit=crop',
 
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+    'https://thebrandhopper.com/wp-content/uploads/2023/03/jp-morgan-chase-title-1024x553.jpg',
 
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+    'https://images.tech.co/wp-content/uploads/2022/03/31082824/AdobeStock_303541183_Editorial_Use_Only-min-708x400.jpeg',
 
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
 
-  'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
+    'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
 
-  'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
+    'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
 
-  'https://cloudfront-us-east-2.images.arcpublishing.com/reuters/ML434ZX7U5LBHCU4WN5K3W7BZQ.jpg',
+    'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
 
-  'https://nintendosoup.com/wp-content/uploads/2024/06/Nintendo-HQ-Red-1038x576.jpg',
+    'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
 
-  'https://helios-i.mashable.com/imagery/articles/025DOuFcnh7IGdQC0EYie0I/images-4.fill.size_800x599.v1675105689.jpg',
-  
-  'https://images.unsplash.com/photo-1508780709619-79562169bc64?q=80&w=3870&auto=format&fit=crop',
+    'https://mamstartup.pl/assets/576/384/86123/86123.jpeg',
 
-  'https://images.unsplash.com/photo-1537432376769-00a63d6c07f2?q=80&w=3870&auto=format&fit=crop',
- 
-  'https://thebrandhopper.com/wp-content/uploads/2023/03/jp-morgan-chase-title-1024x553.jpg',
- 
-  'https://images.tech.co/wp-content/uploads/2022/03/31082824/AdobeStock_303541183_Editorial_Use_Only-min-708x400.jpeg',
+    'https://cloudfront-us-east-2.images.arcpublishing.com/reuters/ML434ZX7U5LBHCU4WN5K3W7BZQ.jpg',
 
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+    'https://nintendosoup.com/wp-content/uploads/2024/06/Nintendo-HQ-Red-1038x576.jpg',
 
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+    'https://helios-i.mashable.com/imagery/articles/025DOuFcnh7IGdQC0EYie0I/images-4.fill.size_800x599.v1675105689.jpg',
 
-  'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1508780709619-79562169bc64?q=80&w=3870&auto=format&fit=crop',
 
-  'https://images.unsplash.com/photo-1537432376769-00a63d6c07f2?q=80&w=3870&auto=format&fit=crop',
- 
+    'https://images.unsplash.com/photo-1537432376769-00a63d6c07f2?q=80&w=3870&auto=format&fit=crop',
 
-];
+    'https://thebrandhopper.com/wp-content/uploads/2023/03/jp-morgan-chase-title-1024x553.jpg',
+
+    'https://images.tech.co/wp-content/uploads/2022/03/31082824/AdobeStock_303541183_Editorial_Use_Only-min-708x400.jpeg',
+
+    'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+
+    'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+
+    'https://images.unsplash.com/photo-1723403804231-f4e9b515fe9d?q=80&w=3870&auto=format&fit=crop',
+
+    'https://images.unsplash.com/photo-1537432376769-00a63d6c07f2?q=80&w=3870&auto=format&fit=crop',
+
+
+  ];
 
 
 
   return (
     <>
       <div className="login-page">
-        
+
         {/* Background layer */}
         <div className="grid-background">
           <GridMotion items={items} />
