@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { API_BASE_URL } from '../../config';
 import { useTheme } from '../../context/ThemeContext';
 import './ResumePage.css';
+import epIcon from '../../../EPlogosmall.png';
 
 interface ResumeData {
   id: string;
@@ -375,9 +376,10 @@ const ResumePage: React.FC = () => {
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
         <div className="sidebar-logo">
-          <div className="logo-icon">EP</div>
+          <div className="logo-icon"><img src={epIcon} alt="EPIcon" /></div>
           {!sidebarCollapsed && <span className="logo-text">EasePath</span>}
         </div>
+
 
         <button
           className="sidebar-toggle"

@@ -89,9 +89,10 @@ body,
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 30px;
-  padding: 0px 0px 5px
-  
+  gap: 12px;
+  margin-bottom: 32px;
+  padding: 0px 0px 5px;
+  border-bottom: 3px solid var(--border-color);
 }
 
 .dashboard-sidebar.collapsed .sidebar-logo {
