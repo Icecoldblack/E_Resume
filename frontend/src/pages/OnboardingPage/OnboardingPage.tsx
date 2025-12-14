@@ -197,11 +197,7 @@ const OnboardingPage: React.FC = () => {
     }
   };
 
-  const handleSkipOnboarding = () => {
-    // Mark onboarding as completed locally so user can proceed
-    updateUser({ onboardingCompleted: true });
-    navigate('/dashboard');
-  };
+
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -692,18 +688,7 @@ const OnboardingPage: React.FC = () => {
         </div>
 
         {/* Skip / Cancel button */}
-        {!isEditMode && (
-          <div className="skip-section">
-            <button
-              type="button"
-              className="btn-skip"
-              onClick={handleSkipOnboarding}
-            >
-              Skip for now →
-            </button>
-            <p className="skip-note">You can complete your profile later in Settings</p>
-          </div>
-        )}
+
 
         {isEditMode && (
           <div className="skip-section">
