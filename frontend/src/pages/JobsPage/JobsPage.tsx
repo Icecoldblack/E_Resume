@@ -130,12 +130,14 @@ const JobsPage: React.FC = () => {
 
       // Using Backend Proxy for JSearch API
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(
         `${API_URL}/api/jobs/search?${params.toString()}`,
         {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
           },
         }
       );
@@ -480,7 +482,7 @@ const JobsPage: React.FC = () => {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="user-profile" onClick={handleLogout}>
+          <div className="user-profile">
             <div className="user-avatar">
               {user?.name?.charAt(0).toUpperCase() || 'U'}
             </div>

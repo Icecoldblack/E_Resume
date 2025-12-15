@@ -152,17 +152,11 @@
   gap: 12px;
   padding: 12px;
   border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.2s ease;
   overflow: hidden;
 }
 
 .jobs-sidebar.collapsed .user-profile {
   justify-content: center;
-}
-
-.user-profile:hover {
-  background: rgba(56, 139, 253, 0.1);
 }
 
 .user-avatar {
@@ -1326,8 +1320,3 @@
   color: #8b949e;
   margin: 0 0 12px 0;
 }
-
-
-
-
-

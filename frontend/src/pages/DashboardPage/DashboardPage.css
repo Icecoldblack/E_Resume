@@ -176,17 +176,11 @@ body,
   gap: 12px;
   padding: 12px;
   border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.2s ease;
   overflow: hidden;
 }
 
 .dashboard-sidebar.collapsed .user-profile {
   justify-content: center;
-}
-
-.user-profile:hover {
-  background: var(--sidebar-hover);
 }
 
 .user-avatar {

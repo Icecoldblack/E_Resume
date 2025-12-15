@@ -211,7 +211,7 @@ const AutoApplyPage: React.FC = () => {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="user-profile" onClick={handleLogout}>
+          <div className="user-profile">
             <div className="user-avatar">
               {user?.name?.charAt(0).toUpperCase() || 'U'}
             </div>

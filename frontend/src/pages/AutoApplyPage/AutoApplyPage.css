@@ -134,13 +134,7 @@
   align-items: center;
   gap: 12px;
   padding: 8px;
-  cursor: pointer;
   border-radius: 8px;
-  transition: background 0.2s ease;
-}
-
-.user-profile:hover {
-  background: rgba(88, 166, 255, 0.1);
 }
 
 .user-avatar {

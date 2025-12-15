@@ -152,16 +152,10 @@
   gap: 12px;
   padding: 12px;
   border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.2s ease;
 }
 
 .settings-sidebar.collapsed .user-profile {
   justify-content: center;
-}
-
-.user-profile:hover {
-  background: rgba(56, 139, 253, 0.1);
 }
 
 .user-avatar {
