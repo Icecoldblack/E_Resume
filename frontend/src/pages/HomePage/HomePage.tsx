@@ -56,37 +56,27 @@ const HomePage: React.FC = () => {
       try {
         const decoded: any = jwtDecode(response.credential);
 
-        // Save the raw token immediately for API requests
-        localStorage.setItem('auth_token', response.credential);
-
-        // Check onboarding status with a timeout to avoid slow loading
+        // Check if user has completed onboarding by fetching from backend
         let onboardingCompleted = false;
-
-        // Create abort controller for timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
-
         try {
           const profileResponse = await fetch(
             `${API_BASE_URL}/api/extension/profile?email=${encodeURIComponent(decoded.email)}`,
             {
               headers: {
                 'Authorization': `Bearer ${response.credential}`
-              },
-              signal: controller.signal
+              }
             }
           );
-          clearTimeout(timeoutId);
-
           if (profileResponse.ok) {
             const profile = await profileResponse.json();
             onboardingCompleted = profile.onboardingCompleted === true;
           }
-        } catch (err: any) {
-          clearTimeout(timeoutId);
-          // On timeout or error, default to onboarding check
-          console.log('Profile fetch timed out or failed, defaulting to onboarding check');
+        } catch (err) {
+          console.log('Could not fetch profile, will check onboarding');
         }
+
+        // Save the raw token for API requests
+        localStorage.setItem('auth_token', response.credential);
 
         login({
           email: decoded.email,
@@ -98,9 +88,9 @@ const HomePage: React.FC = () => {
 
         // Navigate based on onboarding status
         if (onboardingCompleted) {
-          navigate('/dashboard', { replace: true });
+          navigate('/dashboard');
         } else {
-          navigate('/onboarding', { replace: true });
+          navigate('/onboarding');
         }
       } catch (error) {
         console.error('Failed to decode token', error);
