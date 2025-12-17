@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
@@ -11,8 +11,45 @@ import GridMotion from '../../context/GridMotion';
 import './HomePage.css';
 
 const HomePage: React.FC = () => {
-  const { login } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already authenticated - runs before render
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        if (user.onboardingCompleted) {
+          navigate('/dashboard', { replace: true });
+        } else {
+          navigate('/onboarding', { replace: true });
+        }
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  // Don't render login page if already authenticated - prevents flash
+  if (isAuthenticated && user && localStorage.getItem('auth_token')) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        background: '#0d1420'
+      }}>
+        <div style={{
+          width: '40px',
+          height: '40px',
+          border: '3px solid rgba(88, 166, 255, 0.2)',
+          borderTopColor: '#58a6ff',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   const handleSuccess = async (response: CredentialResponse) => {
     if (response.credential) {

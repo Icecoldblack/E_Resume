@@ -21,9 +21,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     const storedUser = localStorage.getItem('user');
-    return storedUser ? JSON.parse(storedUser) : null;
+    const authToken = localStorage.getItem('auth_token');
+    // Only restore user if both user data and auth token exist
+    if (storedUser && authToken) {
+      return JSON.parse(storedUser);
+    }
+    return null;
   });
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!user);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    // Check both user and token exist for persistent authentication
+    const storedUser = localStorage.getItem('user');
+    const authToken = localStorage.getItem('auth_token');
+    return !!(storedUser && authToken);
+  });
 
   const login = (userData: User) => {
     // Check if user has a custom profile picture stored (by email)
@@ -41,6 +51,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = () => {
     localStorage.removeItem('user');
+    localStorage.removeItem('auth_token');
     localStorage.removeItem('easepath_user_email');
     // Note: We keep the custom profile picture stored by email so it persists
     setIsAuthenticated(false);
