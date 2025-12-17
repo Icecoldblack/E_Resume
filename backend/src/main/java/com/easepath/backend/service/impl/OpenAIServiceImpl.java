@@ -189,6 +189,10 @@ public class OpenAIServiceImpl implements OpenAIService {
      * Call OpenAI chat completions API.
      */
     private String callOpenAI(String prompt) {
+        // Log API key prefix for debugging (first 10 chars only for security)
+        String keyPrefix = apiKey != null && apiKey.length() > 10 ? apiKey.substring(0, 10) + "..." : "null/short";
+        log.info("Calling OpenAI API - endpoint: {}, model: {}, key prefix: {}", endpoint, model, keyPrefix);
+
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", model);
 
@@ -198,22 +202,37 @@ public class OpenAIServiceImpl implements OpenAIService {
         requestBody.put("temperature", 0.3); // Lower temperature for more consistent responses
         requestBody.put("max_tokens", 1000);
 
-        String responseBody = webClient.post()
-                .uri(endpoint)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .bodyValue(requestBody)
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
-
-        // Parse the response to extract the content
         try {
+            String responseBody = webClient.post()
+                    .uri(endpoint)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .onStatus(status -> status.isError(), response -> {
+                        return response.bodyToMono(String.class)
+                                .flatMap(errorBody -> {
+                                    log.error("OpenAI API error response: status={}, body={}",
+                                            response.statusCode(), errorBody);
+                                    return reactor.core.publisher.Mono.error(
+                                            new RuntimeException(
+                                                    "OpenAI API error " + response.statusCode() + ": " + errorBody));
+                                });
+                    })
+                    .bodyToMono(String.class)
+                    .block();
+
+            log.info("OpenAI API response received successfully");
+
+            // Parse the response to extract the content
             JsonNode root = objectMapper.readTree(responseBody);
-            return root.path("choices").get(0).path("message").path("content").asText();
+            String content = root.path("choices").get(0).path("message").path("content").asText();
+            log.info("Extracted content length: {} chars", content != null ? content.length() : 0);
+            return content;
+
         } catch (Exception e) {
-            log.error("Failed to parse OpenAI response: {}", e.getMessage());
-            return "";
+            log.error("OpenAI API call failed: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            throw new RuntimeException("OpenAI API call failed: " + e.getMessage(), e);
         }
     }
 
@@ -370,6 +389,10 @@ public class OpenAIServiceImpl implements OpenAIService {
     public Map<String, Object> scoreResume(String resumeText, String fileName) {
         Map<String, Object> result = new HashMap<>();
 
+        log.info("scoreResume called - API Key available: {}, API Key length: {}",
+                isAvailable(),
+                apiKey != null ? apiKey.length() : 0);
+
         if (!isAvailable()) {
             log.warn("OpenAI API not available - returning fallback resume score");
             // Return a fallback score based on basic analysis
@@ -383,11 +406,12 @@ public class OpenAIServiceImpl implements OpenAIService {
             result.put("profile", profileScore);
             result.put("keywords", keywordsScore);
             result.put("ats", atsScore);
-            result.put("message", "Basic analysis complete. Connect OpenAI for detailed scoring.");
+            result.put("message", "OpenAI API key not configured. Basic analysis applied.");
             return result;
         }
 
         try {
+            log.info("Calling OpenAI API for resume scoring...");
             String prompt = String.format(
                     """
                             You are a professional resume reviewer and ATS (Applicant Tracking System) expert.
@@ -402,7 +426,7 @@ public class OpenAIServiceImpl implements OpenAIService {
                             Resume content:
                             %s
 
-                            Respond ONLY with JSON in this exact format:
+                            Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
                             {"overall": 78, "profile": 85, "keywords": 65, "ats": 84, "message": "Brief one-line feedback"}
                             """,
                     fileName != null ? fileName : "resume",
@@ -411,31 +435,74 @@ public class OpenAIServiceImpl implements OpenAIService {
                             : (resumeText != null ? resumeText : "No content"));
 
             String response = callOpenAI(prompt);
-            log.info("Resume score response: {}", response);
+            log.info("Raw OpenAI response for resume score: '{}'", response);
+
+            if (response == null || response.isEmpty()) {
+                log.error("OpenAI returned empty response!");
+                throw new RuntimeException("Empty response from OpenAI");
+            }
 
             // Parse the JSON response
             String jsonStr = response.trim();
+
+            // Handle markdown code blocks
             if (jsonStr.startsWith("```")) {
-                jsonStr = jsonStr.replaceAll("```json\\s*", "").replaceAll("```\\s*", "");
+                jsonStr = jsonStr.replaceAll("```json\\s*", "").replaceAll("```\\s*", "").trim();
             }
 
-            JsonNode scoreNode = objectMapper.readTree(jsonStr);
-            result.put("overall", scoreNode.path("overall").asInt(70));
-            result.put("profile", scoreNode.path("profile").asInt(70));
-            result.put("keywords", scoreNode.path("keywords").asInt(60));
-            result.put("ats", scoreNode.path("ats").asInt(80));
-            result.put("message", scoreNode.path("message").asText("Resume analyzed successfully."));
+            // Extract JSON if there's extra text before/after
+            int jsonStart = jsonStr.indexOf('{');
+            int jsonEnd = jsonStr.lastIndexOf('}');
+            if (jsonStart >= 0 && jsonEnd > jsonStart) {
+                jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
+            }
 
-            log.info("Resume scored: overall={}", result.get("overall"));
+            log.info("Cleaned JSON string: '{}'", jsonStr);
+
+            JsonNode scoreNode = objectMapper.readTree(jsonStr);
+
+            int overall = scoreNode.path("overall").asInt(-1);
+            int profile = scoreNode.path("profile").asInt(-1);
+            int keywords = scoreNode.path("keywords").asInt(-1);
+            int ats = scoreNode.path("ats").asInt(-1);
+            String message = scoreNode.path("message").asText("");
+
+            log.info("Parsed scores - overall: {}, profile: {}, keywords: {}, ats: {}",
+                    overall, profile, keywords, ats);
+
+            // Validate scores are in range 0-100
+            result.put("overall", overall >= 0 && overall <= 100 ? overall : 70);
+            result.put("profile", profile >= 0 && profile <= 100 ? profile : 70);
+            result.put("keywords", keywords >= 0 && keywords <= 100 ? keywords : 60);
+            result.put("ats", ats >= 0 && ats <= 100 ? ats : 80);
+            result.put("message", message.isEmpty() ? "Resume analyzed successfully." : message);
+
+            log.info("Final resume score: overall={}", result.get("overall"));
 
         } catch (Exception e) {
-            log.error("Failed to score resume with OpenAI: {}", e.getMessage());
-            // Return default scores on error
+            log.error("Failed to score resume with OpenAI: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+
+            // Return default scores on error with user-friendly message
             result.put("overall", 70);
             result.put("profile", 70);
             result.put("keywords", 60);
             result.put("ats", 80);
-            result.put("message", "Unable to analyze resume. Default scores applied.");
+
+            // Determine user-friendly error message
+            String errorMsg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+            String userMessage;
+            if (errorMsg.contains("429") || errorMsg.contains("too many") || errorMsg.contains("rate limit")) {
+                userMessage = "Our AI service is temporarily busy. Please try again in a moment.";
+            } else if (errorMsg.contains("401") || errorMsg.contains("unauthorized") || errorMsg.contains("invalid")) {
+                userMessage = "AI scoring is temporarily unavailable. Please try again later.";
+            } else if (errorMsg.contains("timeout") || errorMsg.contains("timed out")) {
+                userMessage = "The analysis took too long. Please try again.";
+            } else if (errorMsg.contains("connection") || errorMsg.contains("network")) {
+                userMessage = "Unable to connect to AI service. Please check your connection.";
+            } else {
+                userMessage = "Resume analysis is temporarily unavailable. Default scores applied.";
+            }
+            result.put("message", userMessage);
         }
 
         return result;
