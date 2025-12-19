@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -63,6 +63,15 @@ const DATE_POSTED_OPTIONS = [
   { value: 'month', label: 'Last Month' },
 ];
 
+const SALARY_OPTIONS = [
+  { value: '', label: 'Any Salary' },
+  { value: '50000', label: '$50k+' },
+  { value: '75000', label: '$75k+' },
+  { value: '100000', label: '$100k+' },
+  { value: '150000', label: '$150k+' },
+  { value: '200000', label: '$200k+' },
+];
+
 const JobsPage: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme } = useTheme();
@@ -79,15 +88,39 @@ const JobsPage: React.FC = () => {
   const [totalJobs, setTotalJobs] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
 
-  const [filters, setFilters] = useState<Filters>({
-    query: '',
-    location: '',
-    employmentType: '',
-    experienceLevel: '',
-    remoteOnly: false,
-    datePosted: '',
-    salaryMin: '',
+  // Load saved filters from localStorage on mount
+  const [filters, setFilters] = useState<Filters>(() => {
+    const saved = localStorage.getItem('jobFilters');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return {
+          query: '',
+          location: '',
+          employmentType: '',
+          experienceLevel: '',
+          remoteOnly: false,
+          datePosted: '',
+          salaryMin: '',
+        };
+      }
+    }
+    return {
+      query: '',
+      location: '',
+      employmentType: '',
+      experienceLevel: '',
+      remoteOnly: false,
+      datePosted: '',
+      salaryMin: '',
+    };
   });
+
+  // Save filters to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('jobFilters', JSON.stringify(filters));
+  }, [filters]);
 
   const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
 
@@ -109,6 +142,11 @@ const JobsPage: React.FC = () => {
         page: pageNum.toString(),
         num_pages: '1',
       });
+
+      // Add location to query if selected (parsed by backend)
+      if (searchFilters.location && searchFilters.location !== 'Remote') {
+        params.set('query', `${searchFilters.query || 'software engineer'} in ${searchFilters.location}`);
+      }
 
       if (searchFilters.employmentType) {
         params.append('employment_types', searchFilters.employmentType);
@@ -152,11 +190,33 @@ const JobsPage: React.FC = () => {
       console.log('Jobs API response:', data);
 
       if (data.data && data.data.length > 0) {
-        setJobs(pageNum === 1 ? data.data : [...jobs, ...data.data]);
-        setTotalJobs(data.data.length > 0 ? (data.data.length * 10) : 0); // Estimated total
-        if (data.data.length > 0 && !selectedJob) {
-          setSelectedJob(data.data[0]);
+        // Client-side filtering for salary (TheirStack doesn't have salary filter)
+        let filteredJobs = data.data;
+        console.log('Jobs before filtering:', filteredJobs.length);
+
+        if (searchFilters.salaryMin) {
+          const minSalary = parseInt(searchFilters.salaryMin, 10);
+          filteredJobs = filteredJobs.filter((job: Job) => {
+            // If no salary info, include the job (don't filter it out)
+            if (!job.job_min_salary && !job.job_max_salary) return true;
+            // Check if job meets minimum salary
+            const jobSalary = job.job_max_salary || job.job_min_salary || 0;
+            // Handle hourly rates (assume 2080 hours/year)
+            const annualSalary = job.job_salary_period === 'HOUR' ? jobSalary * 2080 : jobSalary;
+            return annualSalary >= minSalary;
+          });
         }
+
+        // Note: Employment type filtering is now done by the backend API
+        console.log('Jobs after filtering:', filteredJobs.length);
+
+        setJobs(pageNum === 1 ? filteredJobs : [...jobs, ...filteredJobs]);
+        setTotalJobs(filteredJobs.length > 0 ? (filteredJobs.length * 10) : 0); // Estimated total
+        if (filteredJobs.length > 0 && !selectedJob) {
+          setSelectedJob(filteredJobs[0]);
+        }
+      } else {
+        console.log('No jobs in response. Response:', data);
       }
     } catch (err) {
       console.error('Error fetching jobs:', err);
@@ -278,16 +338,44 @@ const JobsPage: React.FC = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    // Require minimum 3 characters for search query
+    const query = filters.query.trim();
+    if (query.length > 0 && query.length < 3) {
+      setError('Please enter at least 3 characters to search');
+      return;
+    }
     setPage(1);
     fetchJobs(filters, 1);
   };
 
+  // Debounce timer ref for search
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleFilterChange = (key: keyof Filters, value: string | boolean) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    const newFilters = { ...filters, [key]: value };
+    setFilters(newFilters);
+
+    // Clear any pending search
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    // Auto-search when filter changes (except for query which needs enter/submit)
+    if (key !== 'query') {
+      // Only auto-search if query is empty or has 3+ characters
+      const query = newFilters.query.trim();
+      if (query.length === 0 || query.length >= 3) {
+        // Debounce: wait 500ms before searching
+        searchDebounceRef.current = setTimeout(() => {
+          setPage(1);
+          fetchJobs(newFilters, 1);
+        }, 500);
+      }
+    }
   };
 
   const clearFilters = () => {
-    setFilters({
+    const emptyFilters = {
       query: '',
       location: '',
       employmentType: '',
@@ -295,7 +383,10 @@ const JobsPage: React.FC = () => {
       remoteOnly: false,
       datePosted: '',
       salaryMin: '',
-    });
+    };
+    setFilters(emptyFilters);
+    setPage(1);
+    fetchJobs(emptyFilters, 1);
   };
 
   const toggleSaveJob = (jobId: string) => {
@@ -308,6 +399,59 @@ const JobsPage: React.FC = () => {
       }
       return newSet;
     });
+  };
+
+  // Reveal full job details and open apply link
+  // This costs 1 credit - only called when user clicks Apply
+  const handleApply = async (job: Job) => {
+    // If job already has a valid apply link (not blurred), just open it
+    if (job.job_apply_link && !job.job_apply_link.includes('blurred')) {
+      window.open(job.job_apply_link, '_blank');
+      return;
+    }
+
+    // Otherwise, reveal full job details first
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(
+        `${API_URL}/api/jobs/reveal?job_id=${job.job_id}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.data && data.data.length > 0) {
+          const revealedJob = data.data[0];
+          // Update the job in state with revealed data
+          setJobs(prev => prev.map(j =>
+            j.job_id === job.job_id ? { ...j, ...revealedJob } : j
+          ));
+          setSelectedJob(prev => prev?.job_id === job.job_id ? { ...prev, ...revealedJob } : prev);
+          // Open the apply link
+          if (revealedJob.job_apply_link) {
+            window.open(revealedJob.job_apply_link, '_blank');
+          }
+        }
+      } else {
+        // If reveal fails, try opening current link anyway
+        if (job.job_apply_link) {
+          window.open(job.job_apply_link, '_blank');
+        }
+      }
+    } catch (error) {
+      console.error('Error revealing job:', error);
+      // Fallback: try opening current link
+      if (job.job_apply_link) {
+        window.open(job.job_apply_link, '_blank');
+      }
+    }
   };
 
   const formatSalary = (job: Job) => {
@@ -552,8 +696,76 @@ const JobsPage: React.FC = () => {
                 <option value="Remote">Remote</option>
                 <option value="Austin">Austin</option>
               </select>
+              <select
+                value={filters.salaryMin}
+                onChange={(e) => handleFilterChange('salaryMin', e.target.value)}
+                className="filter-dropdown"
+              >
+                {SALARY_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
           </form>
+
+          {/* Active Filter Chips */}
+          {(filters.location || filters.employmentType || filters.salaryMin || filters.remoteOnly || filters.datePosted) && (
+            <div className="filter-chips-bar">
+              {filters.location && (
+                <div className="filter-chip">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                  Location: {filters.location}
+                  <button onClick={() => handleFilterChange('location', '')} className="chip-remove">×</button>
+                </div>
+              )}
+              {filters.employmentType && (
+                <div className="filter-chip">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="7" width="20" height="14" rx="2" />
+                    <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                  </svg>
+                  {EMPLOYMENT_TYPES.find(t => t.value === filters.employmentType)?.label || filters.employmentType}
+                  <button onClick={() => handleFilterChange('employmentType', '')} className="chip-remove">×</button>
+                </div>
+              )}
+              {filters.salaryMin && (
+                <div className="filter-chip">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="12" y1="1" x2="12" y2="23" />
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                  {SALARY_OPTIONS.find(s => s.value === filters.salaryMin)?.label || filters.salaryMin}
+                  <button onClick={() => handleFilterChange('salaryMin', '')} className="chip-remove">×</button>
+                </div>
+              )}
+              {filters.datePosted && (
+                <div className="filter-chip">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  {DATE_POSTED_OPTIONS.find(d => d.value === filters.datePosted)?.label || filters.datePosted}
+                  <button onClick={() => handleFilterChange('datePosted', '')} className="chip-remove">×</button>
+                </div>
+              )}
+              {filters.remoteOnly && (
+                <div className="filter-chip">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                    <polyline points="9 22 9 12 15 12 15 22" />
+                  </svg>
+                  Remote Only
+                  <button onClick={() => handleFilterChange('remoteOnly', false)} className="chip-remove">×</button>
+                </div>
+              )}
+              <button onClick={clearFilters} className="clear-all-btn">Clear All Filters</button>
+            </div>
+          )}
         </div>
 
         {/* Results Section */}
@@ -665,17 +877,15 @@ const JobsPage: React.FC = () => {
                       </svg>
                       Save
                     </button>
-                    <a
-                      href={selectedJob.job_apply_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => handleApply(selectedJob)}
                       className="apply-btn"
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                       </svg>
                       Apply
-                    </a>
+                    </button>
                   </div>
                 </div>
 
@@ -776,8 +986,8 @@ const JobsPage: React.FC = () => {
             )}
           </div>
         </div>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 };
 

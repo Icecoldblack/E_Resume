@@ -16,11 +16,11 @@ import jakarta.servlet.http.HttpServletRequest;
 @RestController
 @RequestMapping("/api/jobs")
 @CrossOrigin(originPatterns = {
-    "http://localhost:*", 
-    "http://127.0.0.1:*", 
-    "chrome-extension://*", 
-    "https://www.easepath.app", 
-    "https://easepath.app"
+        "http://localhost:*",
+        "http://127.0.0.1:*",
+        "chrome-extension://*",
+        "https://www.easepath.app",
+        "https://easepath.app"
 }, allowCredentials = "true")
 public class JobController {
 
@@ -39,13 +39,14 @@ public class JobController {
             @RequestParam(value = "employment_types", required = false) String employmentTypes,
             @RequestParam(value = "job_requirements", required = false) String jobRequirements,
             HttpServletRequest request) {
-        
+
         User currentUser = (User) request.getAttribute("currentUser");
         if (currentUser == null) {
             return ResponseEntity.status(401).build();
         }
-        
-        String result = jobSearchService.searchJobs(query, numPages, datePosted, remoteJobsOnly, employmentTypes, jobRequirements);
+
+        String result = jobSearchService.searchJobs(query, numPages, datePosted, remoteJobsOnly, employmentTypes,
+                jobRequirements);
         return ResponseEntity.ok(result);
     }
 }
