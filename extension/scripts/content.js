@@ -88,7 +88,7 @@ async function checkAndResumeAutofill() {
  */
 async function performSmartAutofill(autoSubmit, sendResponse) {
     try {
-        showProcessingOverlay('🔍 Scanning application form...');
+        showProcessingOverlay('Scanning application form...');
 
         const userProfile = await getStoredUserProfile();
 
@@ -215,12 +215,12 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
 
         let autoSubmitted = false;
         if (autoSubmit && essayCount === 0) {
-            updateOverlay('📤 Submitting application...');
+            updateOverlay('Submitting application...');
             await sleep(1000);
             autoSubmitted = await tryAutoSubmit();
 
             if (autoSubmitted) {
-                showSuccessOverlay('✅ Application Submitted!');
+                showSuccessOverlay('Application Submitted!');
                 const jobInfo = extractJobInfoFromPage();
                 chrome.runtime.sendMessage({
                     action: "record_application",
@@ -246,10 +246,10 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
                 essayQuestions: essayCount,
                 autoSubmitted: autoSubmitted,
                 message: autoSubmitted
-                    ? `✅ Application submitted! Completed ${totalActions} fields.`
+                    ? `Application submitted! Completed ${totalActions} fields.`
                     : essayCount > 0
-                        ? `✏️ Filled ${totalActions} fields. ${essayCount} essay question(s) highlighted.`
-                        : `✅ Filled ${totalActions} fields successfully!`
+                        ? `Filled ${totalActions} fields. ${essayCount} essay question(s) highlighted.`
+                        : `Filled ${totalActions} fields successfully!`
             });
         } else {
             sendResponse({
