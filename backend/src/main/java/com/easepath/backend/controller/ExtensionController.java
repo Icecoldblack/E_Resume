@@ -52,17 +52,20 @@ public class ExtensionController {
     private final JobApplicationRepository jobApplicationRepository;
     private final FormMappingService formMappingService;
     private final AnswerLearningService answerLearningService;
+    private final com.easepath.backend.service.OpenAIService openAIService;
 
     public ExtensionController(UserProfileRepository userProfileRepository,
             ResumeRepository resumeRepository,
             JobApplicationRepository jobApplicationRepository,
             FormMappingService formMappingService,
-            AnswerLearningService answerLearningService) {
+            AnswerLearningService answerLearningService,
+            com.easepath.backend.service.OpenAIService openAIService) {
         this.userProfileRepository = userProfileRepository;
         this.resumeRepository = resumeRepository;
         this.jobApplicationRepository = jobApplicationRepository;
         this.formMappingService = formMappingService;
         this.answerLearningService = answerLearningService;
+        this.openAIService = openAIService;
     }
 
     // Helper method to extract authenticated user
@@ -553,6 +556,129 @@ public class ExtensionController {
         response.put("applicationId", saved.getId());
         response.put("message", "Application recorded successfully");
 
+        return ResponseEntity.ok(response);
+    }
+
+    // ============== AI ESSAY GENERATION ENDPOINT ==============
+
+    /**
+     * DTO for essay generation requests from the extension.
+     */
+    public static class GenerateEssayRequest {
+        private String userEmail;
+        private String question;
+        private String jobTitle;
+        private String companyName;
+        private int maxLength;
+
+        public String getUserEmail() {
+            return userEmail;
+        }
+
+        public void setUserEmail(String userEmail) {
+            this.userEmail = userEmail;
+        }
+
+        public String getQuestion() {
+            return question;
+        }
+
+        public void setQuestion(String question) {
+            this.question = question;
+        }
+
+        public String getJobTitle() {
+            return jobTitle;
+        }
+
+        public void setJobTitle(String jobTitle) {
+            this.jobTitle = jobTitle;
+        }
+
+        public String getCompanyName() {
+            return companyName;
+        }
+
+        public void setCompanyName(String companyName) {
+            this.companyName = companyName;
+        }
+
+        public int getMaxLength() {
+            return maxLength;
+        }
+
+        public void setMaxLength(int maxLength) {
+            this.maxLength = maxLength;
+        }
+    }
+
+    /**
+     * Generate an AI response for an essay question.
+     * Uses OpenAI to craft a professional answer based on user profile and job
+     * context.
+     */
+    @PostMapping("/generate-essay")
+    public ResponseEntity<Map<String, Object>> generateEssay(
+            @RequestBody GenerateEssayRequest request,
+            HttpServletRequest httpRequest) {
+
+        String userEmail = getUserEmail(httpRequest, request.getUserEmail());
+        if (userEmail == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        log.info("Generating AI essay for user: {}, question: {}...",
+                userEmail,
+                request.getQuestion() != null
+                        ? request.getQuestion().substring(0, Math.min(50, request.getQuestion().length()))
+                        : "");
+
+        // Get user profile for context
+        UserProfileDocument profile = userProfileRepository.findByEmail(userEmail).orElse(null);
+        if (profile == null) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Profile not found. Please set up your profile first.");
+            return ResponseEntity.status(400).body(errorResponse);
+        }
+
+        // Check if OpenAI is available
+        if (!openAIService.isAvailable()) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "AI service is not configured.");
+            return ResponseEntity.status(503).body(errorResponse);
+        }
+
+        // Generate the response
+        String aiResponse = openAIService.generateAnswer(
+                request.getQuestion(),
+                profile,
+                request.getJobTitle(),
+                request.getCompanyName());
+
+        if (aiResponse == null || aiResponse.isEmpty()) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to generate AI response. Please try again.");
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+
+        // Truncate if needed, respecting word boundaries
+        if (request.getMaxLength() > 0 && aiResponse.length() > request.getMaxLength()) {
+            // Find the last space before the max length to avoid cutting words in half
+            int truncateAt = aiResponse.lastIndexOf(' ', request.getMaxLength());
+            
+            // If no space found (very unlikely), fall back to hard truncation
+            if (truncateAt == -1 || truncateAt < request.getMaxLength() / 2) {
+                truncateAt = request.getMaxLength();
+            }
+            
+            aiResponse = aiResponse.substring(0, truncateAt).trim() + "...";
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("response", aiResponse);
+        response.put("success", true);
+
+        log.info("AI essay generated successfully, length: {} chars", aiResponse.length());
         return ResponseEntity.ok(response);
     }
 }
