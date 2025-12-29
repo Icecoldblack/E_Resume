@@ -589,7 +589,6 @@ async function generateEssayWithAI(question, jobTitle, companyName, maxLength) {
             
             if (chrome.runtime.lastError) {
                 console.error("EasePath: Chrome runtime error:", chrome.runtime.lastError);
-                clearTimeout(timeout);
                 resolve(null);
                 return;
             }
