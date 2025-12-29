@@ -22,7 +22,13 @@ function nativeDispatchEvents(element) {
             tracker.setValue('');
         }
     } catch (e) {
-        // Ignore errors for internal React props
+        // Ignore errors for internal React props in production,
+        // but log them in development to aid debugging of React integration.
+        if (typeof process !== 'undefined' &&
+            process.env &&
+            process.env.NODE_ENV === 'development') {
+            console.warn('EasePath: Error accessing React _valueTracker in nativeDispatchEvents:', e);
+        }
     }
 }
 
@@ -33,6 +39,18 @@ async function performRobustClick(element) {
     if (!element) return false;
 
     try {
+        // Check if element is disabled or not clickable
+        if (element.disabled || element.getAttribute('aria-disabled') === 'true') {
+            console.warn("EasePath: Skipping click on disabled element:", element);
+            return false;
+        }
+
+        // Check if element is visible
+        if (element.offsetParent === null && element.tagName !== 'BODY') {
+            console.warn("EasePath: Skipping click on hidden element:", element);
+            return false;
+        }
+
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         await sleep(100);
 
@@ -89,15 +107,33 @@ function getElementText(element) {
 
 function highlightElement(element) {
     if (!element) return;
-    const originalBorder = element.style.border;
-    const originalBackground = element.style.backgroundColor;
+    
+    const style = element.style;
 
-    element.style.border = '2px solid #4CAF50';
-    element.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
+    // Preserve original inline values and priorities
+    const originalBorderValue = style.getPropertyValue('border');
+    const originalBorderPriority = style.getPropertyPriority('border');
+    const originalBackgroundValue = style.getPropertyValue('background-color');
+    const originalBackgroundPriority = style.getPropertyPriority('background-color');
+
+    // Apply highlight styles (use !important to ensure visibility if other !important rules exist)
+    style.setProperty('border', '2px solid #4CAF50', 'important');
+    style.setProperty('background-color', 'rgba(76, 175, 80, 0.1)', 'important');
 
     setTimeout(() => {
-        element.style.border = originalBorder;
-        element.style.backgroundColor = originalBackground;
+        // Restore original border
+        if (originalBorderValue) {
+            style.setProperty('border', originalBorderValue, originalBorderPriority || '');
+        } else {
+            style.removeProperty('border');
+        }
+
+        // Restore original background color
+        if (originalBackgroundValue) {
+            style.setProperty('background-color', originalBackgroundValue, originalBackgroundPriority || '');
+        } else {
+            style.removeProperty('background-color');
+        }
     }, 2000);
 }
 

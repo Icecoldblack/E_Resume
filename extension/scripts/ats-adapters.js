@@ -31,7 +31,6 @@ async function applyGreenhouseLogic(profile) {
     for (const field of additionalFields) {
         const input = field.querySelector('input, select, textarea');
         if (input && !input.value) {
-            const label = findLabelForInput(input);
             const value = determineFieldValue(input, profile);
             if (value) {
                 fillTextInput(input, value);

@@ -117,6 +117,15 @@ function determineFieldValue(input, profile) {
         if (input.type === 'date') {
             const today = new Date();
             today.setDate(today.getDate() + 14);
+            
+            // If the date falls on a weekend, round to next Monday
+            const dayOfWeek = today.getDay();
+            if (dayOfWeek === 0) { // Sunday
+                today.setDate(today.getDate() + 1);
+            } else if (dayOfWeek === 6) { // Saturday
+                today.setDate(today.getDate() + 2);
+            }
+            
             return today.toISOString().split('T')[0];
         }
         return profile.availableStartDate || 'Immediately';
@@ -237,6 +246,10 @@ async function clickAllOptions(profile) {
 /**
  * Find and click Yes/No styled button pairs
  * These are common in modern job portals where buttons/divs act as radio options
+ * 
+ * Note: This function currently only supports English text patterns.
+ * For internationalization support, text patterns would need to be configurable
+ * or the page language would need to be detected.
  */
 async function clickYesNoButtonPairs(profile) {
     let clicked = 0;
@@ -390,9 +403,11 @@ async function fillSelectDropdown(select, profile) {
 
     if (valueToSelect || matchPatterns.length > 0) {
         const options = Array.from(select.options);
+        console.log(`EasePath: Trying to fill dropdown "${combined.substring(0, 40)}" with value:`, valueToSelect, "patterns:", matchPatterns);
 
         // First try exact match with profile value
         if (valueToSelect) {
+            console.log(`EasePath: Attempting exact match for value: "${valueToSelect}"`);
             for (const opt of options) {
                 const optText = opt.text.toLowerCase();
                 const optValue = opt.value.toLowerCase();
@@ -401,13 +416,15 @@ async function fillSelectDropdown(select, profile) {
                     select.value = opt.value;
                     nativeDispatchEvents(select);
                     highlightElement(select);
-                    console.log("EasePath: ✓ Dropdown filled:", combined.substring(0, 30), "=", opt.text);
+                    console.log("EasePath: ✓ Dropdown filled (exact match):", combined.substring(0, 30), "=", opt.text);
                     return true;
                 }
             }
+            console.log(`EasePath: No exact match found for value: "${valueToSelect}"`);
         }
 
         // Then try alternative patterns
+        console.log("EasePath: Attempting pattern matching with patterns:", matchPatterns);
         for (const pattern of matchPatterns) {
             for (const opt of options) {
                 const optText = opt.text.toLowerCase();
@@ -416,13 +433,13 @@ async function fillSelectDropdown(select, profile) {
                     select.value = opt.value;
                     nativeDispatchEvents(select);
                     highlightElement(select);
-                    console.log("EasePath: ✓ Dropdown filled (pattern):", combined.substring(0, 30), "=", opt.text);
+                    console.log("EasePath: ✓ Dropdown filled (pattern match):", combined.substring(0, 30), "=", opt.text, "matched pattern:", pattern);
                     return true;
                 }
             }
         }
 
-        console.log("EasePath: Could not find matching option for:", combined.substring(0, 30));
+        console.log("EasePath: ❌ Could not find matching option for:", combined.substring(0, 30), "Available options:", options.map(o => o.text).join(', '));
     }
 
     return false;
@@ -481,93 +498,150 @@ async function handleCheckbox(checkbox, profile) {
 }
 
 /**
+ * Helper functions for determining Yes/No answers based on question type
+ */
+
+function isWorkAuthorizationQuestion(q) {
+    return matchesAny(q, ['authorized to work', 'legally authorized', 'work authorization', 'eligible to work', 'legally eligible', 'right to work', 'permission to work']);
+}
+
+function isSponsorshipQuestion(q) {
+    return matchesAny(q, ['require sponsorship', 'need sponsorship', 'visa sponsorship', 'require visa', 'sponsorship to work', 'immigration sponsorship', 'sponsor now or in the future', 'sponsorship now or']);
+}
+
+function isCitizenshipQuestion(q) {
+    return matchesAny(q, ['us citizen', 'u.s. citizen', 'united states citizen', 'american citizen']);
+}
+
+function isAgeVerificationQuestion(q) {
+    return matchesAny(q, ['18 years', 'over 18', 'at least 18', '18 or older', 'legal age']);
+}
+
+function isTermsAgreementQuestion(q) {
+    return matchesAny(q, ['agree', 'accept', 'consent', 'acknowledge', 'terms', 'conditions', 'privacy policy', 'i confirm', 'i certify', 'i understand']);
+}
+
+function isRelocationQuestion(q) {
+    return matchesAny(q, ['willing to relocate', 'open to relocation', 'relocate for this position', 'willing to move']);
+}
+
+function isCommuteQuestion(q) {
+    return matchesAny(q, ['commute', 'work on-site', 'work onsite', 'in-office', 'in office', 'work in person']);
+}
+
+function isBackgroundCheckQuestion(q) {
+    return matchesAny(q, ['background check', 'background investigation', 'criminal history', 'drug test', 'drug screen']);
+}
+
+function isPreviousEmployeeQuestion(q) {
+    return matchesAny(q, ['previously employed', 'former employee', 'worked here before', 'previously worked']);
+}
+
+function isVeteranQuestion(q) {
+    return matchesAny(q, ['veteran', 'military', 'served in', 'armed forces']);
+}
+
+function isDisabilityQuestion(q) {
+    return matchesAny(q, ['disability', 'disabled', 'disabilities']);
+}
+
+function isReferralQuestion(q) {
+    return matchesAny(q, ['referred by', 'referral', 'know anyone', 'employee referral']);
+}
+
+function isNDAQuestion(q) {
+    return matchesAny(q, ['confidentiality', 'nda', 'non-disclosure', 'proprietary information']);
+}
+
+/**
  * Determine Yes/No answer based on question text and profile
+ * Refactored into smaller, testable helper functions for maintainability
  */
 function determineYesNoAnswer(questionText, profile) {
     const q = (questionText || '').toLowerCase();
 
     console.log("EasePath: Evaluating question:", q.substring(0, 80));
 
-    // Work authorization questions - usually want "Yes" if authorized
-    if (matchesAny(q, ['authorized to work', 'legally authorized', 'work authorization', 'eligible to work', 'legally eligible', 'right to work', 'permission to work'])) {
+    // Work authorization questions
+    if (isWorkAuthorizationQuestion(q)) {
         const isAuthorized = profile.workAuthorization && profile.workAuthorization !== 'No';
         console.log("EasePath: Work auth question, answering:", isAuthorized);
         return isAuthorized !== false;
     }
 
-    // Sponsorship questions - check profile setting
-    if (matchesAny(q, ['require sponsorship', 'need sponsorship', 'visa sponsorship', 'require visa', 'sponsorship to work', 'immigration sponsorship', 'sponsor now or in the future', 'sponsorship now or'])) {
+    // Sponsorship questions
+    if (isSponsorshipQuestion(q)) {
         const needsSponsorship = profile.requiresSponsorship === true;
         console.log("EasePath: Sponsorship question, answering:", needsSponsorship);
         return needsSponsorship;
     }
 
     // US Citizen questions
-    if (matchesAny(q, ['us citizen', 'u.s. citizen', 'united states citizen', 'american citizen'])) {
+    if (isCitizenshipQuestion(q)) {
         const isCitizen = profile.usCitizen === true || profile.isUsCitizen === true;
         console.log("EasePath: Citizen question, answering:", isCitizen);
         return isCitizen;
     }
 
-    // Age requirements - always true (job applicants should be 18+)
-    if (matchesAny(q, ['18 years', 'over 18', 'at least 18', '18 or older', 'legal age'])) {
+    // Age requirements
+    if (isAgeVerificationQuestion(q)) {
         console.log("EasePath: Age question, answering: true");
         return true;
     }
 
-    // Terms and conditions - always agree
-    if (matchesAny(q, ['agree', 'accept', 'consent', 'acknowledge', 'terms', 'conditions', 'privacy policy', 'i confirm', 'i certify', 'i understand'])) {
+    // Terms and conditions
+    if (isTermsAgreementQuestion(q)) {
         console.log("EasePath: Terms question, answering: true");
         return true;
     }
 
     // Willing to relocate
-    if (matchesAny(q, ['willing to relocate', 'open to relocation', 'relocate for this position', 'willing to move'])) {
+    if (isRelocationQuestion(q)) {
         const willingToRelocate = profile.willingToRelocate === true;
         console.log("EasePath: Relocation question, answering:", willingToRelocate);
         return willingToRelocate;
     }
 
     // Commute / in-person work
-    if (matchesAny(q, ['commute', 'work on-site', 'work onsite', 'in-office', 'in office', 'work in person'])) {
+    if (isCommuteQuestion(q)) {
         console.log("EasePath: Commute question, answering: true");
         return true;
     }
 
     // Background check consent
-    if (matchesAny(q, ['background check', 'background investigation', 'criminal history', 'drug test', 'drug screen'])) {
+    if (isBackgroundCheckQuestion(q)) {
         console.log("EasePath: Background check question, answering: true");
         return true;
     }
 
-    // Previous employee question - usually no
-    if (matchesAny(q, ['previously employed', 'former employee', 'worked here before', 'previously worked'])) {
+    // Previous employee question
+    if (isPreviousEmployeeQuestion(q)) {
         console.log("EasePath: Previous employee question, answering: false");
         return false;
     }
 
     // Veteran status
-    if (matchesAny(q, ['veteran', 'military', 'served in', 'armed forces'])) {
+    if (isVeteranQuestion(q)) {
         const isVeteran = profile.veteranStatus && profile.veteranStatus.toLowerCase().includes('yes');
         console.log("EasePath: Veteran question, answering:", isVeteran);
         return isVeteran || false;
     }
 
     // Disability
-    if (matchesAny(q, ['disability', 'disabled', 'disabilities'])) {
+    if (isDisabilityQuestion(q)) {
         const hasDisability = profile.disabilityStatus && profile.disabilityStatus.toLowerCase().includes('yes');
         console.log("EasePath: Disability question, answering:", hasDisability);
         return hasDisability || false;
     }
 
-    // Referral - usually no unless profile has referral info
-    if (matchesAny(q, ['referred by', 'referral', 'know anyone', 'employee referral'])) {
+    // Referral
+    if (isReferralQuestion(q)) {
         console.log("EasePath: Referral question, answering: false");
         return false;
     }
 
-    // NDA / confidentiality - always agree
-    if (matchesAny(q, ['confidentiality', 'nda', 'non-disclosure', 'proprietary information'])) {
+    // NDA / confidentiality
+    if (isNDAQuestion(q)) {
         console.log("EasePath: NDA question, answering: true");
         return true;
     }

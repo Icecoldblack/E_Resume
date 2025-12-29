@@ -66,12 +66,14 @@ checkAndResumeAutofill();
 async function checkAndResumeAutofill() {
     try {
         const state = await new Promise(resolve => {
-            chrome.storage.local.get(['autofillInProgress', 'autoSubmitEnabled'], resolve);
+            chrome.storage.local.get(['autofillInProgress', 'autoSubmitEnabled', 'resumeDelay'], resolve);
         });
 
         if (state.autofillInProgress) {
             console.log("EasePath: Resuming in-progress autofill...");
-            await sleep(1500);
+            // Use configurable delay, default to 1500ms for slow-loading pages
+            const delay = state.resumeDelay || 1500;
+            await sleep(delay);
             performSmartAutofill(state.autoSubmitEnabled, (response) => {
                 console.log("EasePath: Resumed autofill completed:", response);
             });
@@ -86,7 +88,7 @@ async function checkAndResumeAutofill() {
  */
 async function performSmartAutofill(autoSubmit, sendResponse) {
     try {
-        showProcessingOverlay(' Scanning application form...');
+        showProcessingOverlay('Scanning application form...');
 
         const userProfile = await getStoredUserProfile();
 
@@ -213,12 +215,12 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
 
         let autoSubmitted = false;
         if (autoSubmit && essayCount === 0) {
-            updateOverlay(' Submitting application...');
+            updateOverlay('Submitting application...');
             await sleep(1000);
             autoSubmitted = await tryAutoSubmit();
 
             if (autoSubmitted) {
-                showSuccessOverlay(' Application Submitted!');
+                showSuccessOverlay('Application Submitted!');
                 const jobInfo = extractJobInfoFromPage();
                 chrome.runtime.sendMessage({
                     action: "record_application",
@@ -244,10 +246,10 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
                 essayQuestions: essayCount,
                 autoSubmitted: autoSubmitted,
                 message: autoSubmitted
-                    ? ` Application submitted! Completed ${totalActions} fields.`
+                    ? `Application submitted! Completed ${totalActions} fields.`
                     : essayCount > 0
                         ? `Filled ${totalActions} fields. ${essayCount} essay question(s) highlighted.`
-                        : ` Filled ${totalActions} fields successfully!`
+                        : `Filled ${totalActions} fields successfully!`
             });
         } else {
             sendResponse({
@@ -468,10 +470,21 @@ async function tryUploadResume() {
             console.log("EasePath: ✓ Resume uploaded (fallback)");
             return true;
         } else {
-            console.log("EasePath: No resume data in response:", response?.error || "unknown error");
+            console.error("EasePath: Resume upload failed - no file data received:", response?.error || "unknown error");
         }
     } catch (e) {
-        console.error("EasePath: Error uploading resume:", e);
+        console.error("EasePath: Resume upload error:", {
+            message: e.message,
+            stack: e.stack,
+            name: e.name
+        });
+        
+        // Provide specific error context
+        if (e instanceof DOMException) {
+            console.error("EasePath: DOM operation failed during resume upload - check file input accessibility");
+        } else if (e.name === 'InvalidCharacterError') {
+            console.error("EasePath: File conversion failed - invalid base64 data received");
+        }
     }
 
     return false;
@@ -550,7 +563,12 @@ document.addEventListener('submit', () => {
  * Generate an AI response for an essay question
  */
 async function generateEssayWithAI(question, jobTitle, companyName, maxLength) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+            console.error("EasePath: AI essay generation timed out after 30 seconds");
+            resolve(null);
+        }, 30000);
+
         chrome.runtime.sendMessage({
             action: "generate_essay_response",
             question: question,
@@ -558,6 +576,14 @@ async function generateEssayWithAI(question, jobTitle, companyName, maxLength) {
             companyName: companyName,
             maxLength: maxLength
         }, (response) => {
+            clearTimeout(timeoutId);
+            
+            if (chrome.runtime.lastError) {
+                console.error("EasePath: Chrome runtime error during AI essay generation:", chrome.runtime.lastError);
+                resolve(null);
+                return;
+            }
+            
             if (response && response.success && response.response) {
                 resolve(response.response);
             } else {
