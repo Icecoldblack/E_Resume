@@ -19,8 +19,17 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["scripts/content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "scripts/utils.js",
+        "scripts/dom-analyzer.js",
+        "scripts/ui.js",
+        "scripts/form-filler.js",
+        "scripts/ats-adapters.js",
+        "scripts/content.js"
+      ],
       "run_at": "document_idle"
     }
   ],

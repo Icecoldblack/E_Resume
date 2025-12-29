@@ -217,6 +217,45 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         return true; // Keep channel open for async
     }
+
+    // Handle AI essay generation request
+    if (request.action === "generate_essay_response") {
+        if (!userEmail || !authToken) {
+            sendResponse({ error: "Not logged in" });
+            return true;
+        }
+
+        console.log("Background: Generating AI response for essay:", request.question.substring(0, 50));
+
+        fetch(`${API_BASE_URL}/generate-essay`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                userEmail: userEmail,
+                question: request.question,
+                jobTitle: request.jobTitle,
+                companyName: request.companyName,
+                maxLength: request.maxLength || 500
+            })
+        })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                console.log("Background: AI response generated successfully");
+                sendResponse({ success: true, response: data.response });
+            })
+            .catch(err => {
+                console.error("Background: Failed to generate essay:", err);
+                sendResponse({ error: "Could not generate AI response" });
+            });
+
+        return true;
+    }
 });
 
 // Extract platform name from URL
