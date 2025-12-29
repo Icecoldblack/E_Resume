@@ -661,9 +661,22 @@ public class ExtensionController {
             return ResponseEntity.status(500).body(errorResponse);
         }
 
-        // Truncate if needed
+        // Truncate if needed, respecting word boundaries
         if (request.getMaxLength() > 0 && aiResponse.length() > request.getMaxLength()) {
-            aiResponse = aiResponse.substring(0, request.getMaxLength());
+            // Find the last space before the max length to avoid cutting words in half
+            int truncateAt = aiResponse.lastIndexOf(' ', request.getMaxLength());
+            
+            // If no space found (very unlikely), fall back to hard truncation
+            if (truncateAt == -1 || truncateAt < request.getMaxLength() / 2) {
+                truncateAt = request.getMaxLength();
+            }
+            
+            aiResponse = aiResponse.substring(0, truncateAt).trim();
+            
+            // Add ellipsis if truncated
+            if (truncateAt < aiResponse.length()) {
+                aiResponse += "...";
+            }
         }
 
         Map<String, Object> response = new HashMap<>();
