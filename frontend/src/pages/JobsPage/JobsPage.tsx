@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
+import { apiRequest } from '../../utils/apiClient';
 import './JobsPage.css';
 import epIcon from '../../../EPlogosmall.png';
 
@@ -166,19 +167,8 @@ const JobsPage: React.FC = () => {
 
       console.log('Fetching jobs with params:', params.toString());
 
-      // Using Backend Proxy for JSearch API
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(
-        `${API_URL}/api/jobs/search?${params.toString()}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
+      // Using apiRequest for automatic 401 handling
+      const response = await apiRequest(`/api/jobs/search?${params.toString()}`);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -412,18 +402,7 @@ const JobsPage: React.FC = () => {
 
     // Otherwise, reveal full job details first
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(
-        `${API_URL}/api/jobs/reveal?job_id=${job.job_id}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await apiRequest(`/api/jobs/reveal?job_id=${job.job_id}`);
 
       if (response.ok) {
         const data = await response.json();

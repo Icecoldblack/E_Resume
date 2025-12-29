@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { isTokenExpired } from '../utils/apiClient';
 
 interface User {
   email: string;
@@ -34,6 +35,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const authToken = localStorage.getItem('auth_token');
     return !!(storedUser && authToken);
   });
+
+  // Check token expiration on app startup and periodically
+  useEffect(() => {
+    const checkAndLogout = () => {
+      if (isAuthenticated && isTokenExpired()) {
+        console.warn('Token expired on startup. Logging out...');
+        logout();
+      }
+    };
+
+    // Check immediately on mount
+    checkAndLogout();
+
+    // Also check every minute while app is open
+    const interval = setInterval(checkAndLogout, 60000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
   const login = (userData: User) => {
     // Check if user has a custom profile picture stored (by email)

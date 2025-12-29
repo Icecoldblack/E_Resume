@@ -40,7 +40,7 @@ public class CacheWarmerService {
 
     @EventListener(ApplicationReadyEvent.class)
     public void warmCache() {
-        log.info("🔥 Starting cache warm-up with {} popular searches...", POPULAR_SEARCHES.length);
+        log.info("Starting cache warm-up with {} popular searches...", POPULAR_SEARCHES.length);
 
         int successCount = 0;
         for (String query : POPULAR_SEARCHES) {
@@ -48,16 +48,16 @@ public class CacheWarmerService {
                 // Search with default parameters - this will cache the results
                 jobSearchService.searchJobs(query, "1", "all", null, null, null);
                 successCount++;
-                log.info("✅ Cached: {}", query);
+                log.info(" Cached: {}", query);
 
                 // Small delay to avoid overwhelming the API
                 Thread.sleep(1000);
             } catch (Exception e) {
-                log.warn("⚠️ Failed to cache '{}': {}", query, e.getMessage());
+                log.warn("Failed to cache '{}': {}", query, e.getMessage());
             }
         }
 
-        log.info("🎉 Cache warm-up complete! Successfully cached {}/{} searches.",
+        log.info("Cache warm-up complete! Successfully cached {}/{} searches.",
                 successCount, POPULAR_SEARCHES.length);
     }
 }
