@@ -817,7 +817,12 @@ const JobsPage: React.FC = () => {
                 </div>
               ) : jobs.length === 0 ? (
                 <div className="empty-state">
-                  <div className="empty-icon">💼</div>
+                  <div className="empty-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="2" y="7" width="20" height="14" rx="2" />
+                      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                    </svg>
+                  </div>
                   <h3>No jobs found</h3>
                   <p>Try adjusting your search or filters to find more opportunities</p>
                 </div>
@@ -990,19 +995,48 @@ const JobsPage: React.FC = () => {
 
                   <div className="job-highlights">
                     <div className="highlight-item">
-                      <span className="highlight-icon">💰</span>
+                      <span className="highlight-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="12" y1="1" x2="12" y2="23" />
+                          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                        </svg>
+                      </span>
                       <span className="highlight-text">{formatSalary(selectedJob)}</span>
                     </div>
                     <div className="highlight-item">
-                      <span className="highlight-icon">📋</span>
+                      <span className="highlight-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="2" y="7" width="20" height="14" rx="2" />
+                          <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                        </svg>
+                      </span>
                       <span className="highlight-text">{getEmploymentTypeLabel(selectedJob.job_employment_type)}</span>
                     </div>
                     <div className="highlight-item">
-                      <span className="highlight-icon">📍</span>
+                      <span className="highlight-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                          <circle cx="12" cy="10" r="3" />
+                        </svg>
+                      </span>
                       <span className="highlight-text">{selectedJob.job_city}, {selectedJob.job_state}, {selectedJob.job_country}</span>
                     </div>
                     <div className="highlight-item">
-                      <span className="highlight-icon">{selectedJob.job_is_remote ? '🏠' : '🏢'}</span>
+                      <span className="highlight-icon">
+                        {selectedJob.job_is_remote ? (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                            <polyline points="9 22 9 12 15 12 15 22" />
+                          </svg>
+                        ) : (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="4" y="2" width="16" height="20" rx="2" />
+                            <line x1="8" y1="6" x2="16" y2="6" />
+                            <line x1="8" y1="10" x2="16" y2="10" />
+                            <line x1="8" y1="14" x2="12" y2="14" />
+                          </svg>
+                        )}
+                      </span>
                       <span className="highlight-text">{selectedJob.job_is_remote ? 'Remote' : 'In Person'}</span>
                     </div>
                   </div>

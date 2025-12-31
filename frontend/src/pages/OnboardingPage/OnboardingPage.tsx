@@ -208,11 +208,11 @@ const OnboardingPage: React.FC = () => {
         isUsCitizen: checked,
         ...(checked
           ? {
-              workAuthorization: '',
-              requiresSponsorship: false,
-              hasWorkVisa: false,
-              visaType: '',
-            }
+            workAuthorization: '',
+            requiresSponsorship: false,
+            hasWorkVisa: false,
+            visaType: '',
+          }
           : {}),
       }));
       return;
@@ -382,7 +382,7 @@ const OnboardingPage: React.FC = () => {
       case 2:
         return (
           <div className="onboarding-step">
-            <h2>📍 Where are you located?</h2>
+            <h2><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>Where are you located?</h2>
             <p className="step-description">Your location helps match you with relevant opportunities.</p>
 
             <div className="form-group">
@@ -537,7 +537,7 @@ const OnboardingPage: React.FC = () => {
       case 4:
         return (
           <div className="onboarding-step">
-            <h2>💼 Job Preferences</h2>
+            <h2><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }}><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></svg>Job Preferences</h2>
             <p className="step-description">Tell us what you're looking for in your next role.</p>
 
             <div className="form-group">
@@ -655,7 +655,7 @@ const OnboardingPage: React.FC = () => {
       case 5:
         return (
           <div className="onboarding-step">
-            <h2>📋 Optional Information</h2>
+            <h2><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>Optional Information</h2>
             <p className="step-description">
               Many applications ask these for Equal Employment Opportunity reporting.
               All fields are optional and you can choose "Prefer not to say".
@@ -725,7 +725,12 @@ const OnboardingPage: React.FC = () => {
     return (
       <div className="onboarding-container">
         <div className="onboarding-card" style={{ textAlign: 'center', padding: '60px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
           <h2>Loading your profile...</h2>
           <p>Please wait while we check your information.</p>
         </div>
@@ -766,7 +771,11 @@ const OnboardingPage: React.FC = () => {
               onClick={handleSubmit}
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Saving...' : (isEditMode ? '💾 Save Changes' : '🚀 Complete Setup')}
+              {isSubmitting ? 'Saving...' : (isEditMode ? (
+                <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>Save Changes</>
+              ) : (
+                <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }}><path d="M22 2L15 22l-4-9-9-4z" /></svg>Complete Setup</>
+              ))}
             </button>
           )}
         </div>
