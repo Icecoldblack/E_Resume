@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -30,6 +31,7 @@ import com.easepath.backend.dto.JobApplicationResult;
 import com.easepath.backend.dto.JobMatchResult;
 import com.easepath.backend.dto.JobMatchResult.MatchStatus;
 import com.easepath.backend.dto.ResumeDto;
+import com.easepath.backend.dto.TrackApplicationRequest;
 import com.easepath.backend.model.JobApplicationDocument;
 import com.easepath.backend.repository.JobApplicationRepository;
 import com.easepath.backend.service.AiScoringService;
@@ -78,9 +80,10 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         if (StringUtils.hasText(request.getResumeSummary()) || StringUtils.hasText(request.getResumeFileName())) {
             try {
                 ResumeDto resumeDto = new ResumeDto();
-                String fileName = StringUtils.hasText(request.getResumeFileName()) ? request.getResumeFileName() : "Auto Apply Resume";
+                String fileName = StringUtils.hasText(request.getResumeFileName()) ? request.getResumeFileName()
+                        : "Auto Apply Resume";
                 resumeDto.setTitle(fileName);
-                
+
                 String parsedText = "";
                 if (StringUtils.hasText(request.getResumeFileData()) && fileName.toLowerCase().endsWith(".pdf")) {
                     try {
@@ -95,8 +98,9 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                 }
 
                 resumeDto.setParsedText(parsedText);
-                
-                // If summary is empty but we have parsed text, use a snippet of parsed text as summary
+
+                // If summary is empty but we have parsed text, use a snippet of parsed text as
+                // summary
                 if (StringUtils.hasText(request.getResumeSummary())) {
                     resumeDto.setSummary(request.getResumeSummary());
                 } else if (StringUtils.hasText(parsedText)) {
@@ -105,7 +109,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                 } else {
                     resumeDto.setSummary("No summary provided and file parsing failed or not supported.");
                 }
-                
+
                 // Ensure we replace the old resume with the new one
                 resumeService.deleteAllResumes();
 
@@ -124,11 +128,12 @@ public class JobApplicationServiceImpl implements JobApplicationService {
 
         // Placeholder for using the internally managed AI key.
         LOGGER.info("Using AI key (placeholder value truncated): {}", aiApiKey != null && aiApiKey.length() > 6
-            ? aiApiKey.substring(0, 6) + "***"
-            : "not configured");
+                ? aiApiKey.substring(0, 6) + "***"
+                : "not configured");
         LOGGER.info("Starting job application process for title '{}' against '{}'", jobTitle, jobBoardUrl);
         LOGGER.info("Application Count target: {}", applicationCount);
-        LOGGER.info("Resume summary length: {}", request.getResumeSummary() != null ? request.getResumeSummary().length() : 0);
+        LOGGER.info("Resume summary length: {}",
+                request.getResumeSummary() != null ? request.getResumeSummary().length() : 0);
         LOGGER.info("Resume file provided: {}", request.getResumeFileName() != null);
         if (request.getResumeFileName() != null) {
             int dataLength = request.getResumeFileData() != null ? request.getResumeFileData().length() : 0;
@@ -136,21 +141,21 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         }
         LOGGER.info("Preferred companies: {}", request.getPreferredCompanies());
         LOGGER.info("Job preference: {} | Salary range: {} | Internship opt-in: {}", request.getJobPreference(),
-            request.getSalaryRange(), request.isLookingForInternships());
+                request.getSalaryRange(), request.isLookingForInternships());
         LOGGER.info("Mail sender configured: {}", mailSender != null);
 
         try {
             Connection connection = Jsoup.connect(jobBoardUrl)
-                .userAgent(DEFAULT_USER_AGENT)
-                .referrer("https://www.google.com")
-                .header("Accept-Language", "en-US,en;q=0.9")
-                .header("Cache-Control", "no-cache")
-                .timeout(15000)
-                .followRedirects(true);
+                    .userAgent(DEFAULT_USER_AGENT)
+                    .referrer("https://www.google.com")
+                    .header("Accept-Language", "en-US,en;q=0.9")
+                    .header("Cache-Control", "no-cache")
+                    .timeout(15000)
+                    .followRedirects(true);
 
             Document doc = connection.get();
             Elements jobLinks = doc.select("a[href*=/jobs/view/]"); // Example selector for LinkedIn
-            
+
             // Fallback selector if specific one fails
             if (jobLinks.isEmpty()) {
                 LOGGER.info("No jobs found with primary selector, trying fallback...");
@@ -159,16 +164,18 @@ public class JobApplicationServiceImpl implements JobApplicationService {
 
             if (jobLinks.isEmpty()) {
                 LOGGER.warn("No job links found on the provided URL: {}", jobBoardUrl);
-                result.getMatches().add(new JobMatchResult(jobBoardUrl, "N/A", 
-                    MatchStatus.ERROR, "No job links found on this page. Check the URL or the site structure.", 0.0));
-                saveApplicationAttempt(request.getUserEmail(), jobBoardUrl, "N/A", MatchStatus.ERROR.name(), 0.0, "No job links found.");
+                result.getMatches().add(new JobMatchResult(jobBoardUrl, "N/A",
+                        MatchStatus.ERROR, "No job links found on this page. Check the URL or the site structure.",
+                        0.0));
+                saveApplicationAttempt(request.getUserEmail(), jobBoardUrl, "N/A", MatchStatus.ERROR.name(), 0.0,
+                        "No job links found.");
             }
 
             // Limit the scope of processing to avoid scanning the "whole website"
             // We will scan up to (requested * 5) links to find the best matches
             int maxLinksToScan = applicationCount * 5;
             int scannedCount = 0;
-            
+
             List<JobMatchResult> candidates = new ArrayList<>();
 
             for (Element link : jobLinks) {
@@ -187,15 +194,16 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                     result.setSkippedUnrelated(result.getSkippedUnrelated() + 1);
                     continue;
                 }
-                
+
                 AiScoreResult scoreResult = aiScoringService.scoreJobFit(request, jobSnippet);
                 LOGGER.info("AI score for job '{}': {} ({})", jobSnippet, scoreResult.score(), scoreResult.reasoning());
-                
+
                 if (scoreResult.score() < MIN_AI_SCORE) {
                     result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
-                        MatchStatus.SKIPPED_LOW_SCORE, scoreResult.reasoning(), scoreResult.score()));
+                            MatchStatus.SKIPPED_LOW_SCORE, scoreResult.reasoning(), scoreResult.score()));
                     result.setSkippedLowScore(result.getSkippedLowScore() + 1);
-                    saveApplicationAttempt(request.getUserEmail(), jobUrl, jobSnippet, MatchStatus.SKIPPED_LOW_SCORE.name(), scoreResult.score(), scoreResult.reasoning());
+                    saveApplicationAttempt(request.getUserEmail(), jobUrl, jobSnippet,
+                            MatchStatus.SKIPPED_LOW_SCORE.name(), scoreResult.score(), scoreResult.reasoning());
                     continue;
                 }
 
@@ -203,42 +211,48 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                     LOGGER.info("Writing prompt detected for job: {}", jobUrl);
                     sendEmailToUser(jobUrl, jobTitle, request.getUserEmail());
                     result.getMatches().add(new JobMatchResult(jobUrl, jobSnippet,
-                        MatchStatus.SKIPPED_PROMPT, "Writing prompt detected; emailed user", scoreResult.score()));
+                            MatchStatus.SKIPPED_PROMPT, "Writing prompt detected; emailed user", scoreResult.score()));
                     result.setSkippedPrompts(result.getSkippedPrompts() + 1);
-                    saveApplicationAttempt(request.getUserEmail(), jobUrl, jobSnippet, MatchStatus.SKIPPED_PROMPT.name(), scoreResult.score(), "Writing prompt detected; emailed user");
+                    saveApplicationAttempt(request.getUserEmail(), jobUrl, jobSnippet,
+                            MatchStatus.SKIPPED_PROMPT.name(), scoreResult.score(),
+                            "Writing prompt detected; emailed user");
                 } else {
                     // Add to candidates list instead of applying immediately
                     candidates.add(new JobMatchResult(jobUrl, jobSnippet,
-                        MatchStatus.PENDING, "Match found. Application logic pending. " + scoreResult.reasoning(), scoreResult.score()));
+                            MatchStatus.PENDING, "Match found. Application logic pending. " + scoreResult.reasoning(),
+                            scoreResult.score()));
                 }
             }
 
             // Sort candidates by score (highest first) and pick the top N
             candidates.sort(Comparator.comparingDouble(JobMatchResult::getScore).reversed());
-            
+
             int appliedCount = 0;
             for (JobMatchResult candidate : candidates) {
                 if (appliedCount >= applicationCount) {
                     break;
                 }
-                
+
                 LOGGER.info("Selected top candidate: {} (Score: {})", candidate.getTitle(), candidate.getScore());
                 result.getMatches().add(candidate);
-                saveApplicationAttempt(request.getUserEmail(), candidate.getJobUrl(), candidate.getTitle(), MatchStatus.PENDING.name(), candidate.getScore(), candidate.getReason());
+                saveApplicationAttempt(request.getUserEmail(), candidate.getJobUrl(), candidate.getTitle(),
+                        MatchStatus.PENDING.name(), candidate.getScore(), candidate.getReason());
                 appliedCount++;
             }
-            
+
             result.setAppliedCount(appliedCount);
         } catch (HttpStatusException e) {
             LOGGER.error("HTTP error fetching job board: status={} url={}", e.getStatusCode(), e.getUrl());
             result.getMatches().add(new JobMatchResult(jobBoardUrl, jobTitle,
-                MatchStatus.ERROR, "HTTP error fetching URL (" + e.getStatusCode() + "): " + e.getUrl(), 0.0));
-            saveApplicationAttempt(request.getUserEmail(), jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0, "HTTP error: " + e.getStatusCode());
+                    MatchStatus.ERROR, "HTTP error fetching URL (" + e.getStatusCode() + "): " + e.getUrl(), 0.0));
+            saveApplicationAttempt(request.getUserEmail(), jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0,
+                    "HTTP error: " + e.getStatusCode());
         } catch (IOException e) {
             LOGGER.error("Failed to scrape job board: {}", e.getMessage());
             result.getMatches().add(new JobMatchResult(jobBoardUrl, jobTitle,
-                MatchStatus.ERROR, "Failed to scrape job board: " + e.getMessage(), 0.0));
-            saveApplicationAttempt(request.getUserEmail(), jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0, "Failed to scrape: " + e.getMessage());
+                    MatchStatus.ERROR, "Failed to scrape job board: " + e.getMessage(), 0.0));
+            saveApplicationAttempt(request.getUserEmail(), jobBoardUrl, jobTitle, MatchStatus.ERROR.name(), 0.0,
+                    "Failed to scrape: " + e.getMessage());
         }
 
         return result;
@@ -249,7 +263,39 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         return jobApplicationRepository.findByUserEmail(userEmail);
     }
 
-    private void saveApplicationAttempt(String userEmail, String jobUrl, String jobTitle, String status, double score, String reason) {
+    @Override
+    public JobApplicationDocument trackApplication(String userEmail, TrackApplicationRequest request) {
+        LOGGER.info("Tracking application for user {} - job: {}", userEmail, request.getJobTitle());
+
+        JobApplicationDocument doc = new JobApplicationDocument();
+        doc.setUserEmail(userEmail);
+        doc.setJobTitle(request.getJobTitle());
+        doc.setCompanyName(request.getCompanyName());
+        doc.setJobUrl(request.getJobUrl());
+        doc.setStatus(request.getStatus() != null ? request.getStatus() : "applied");
+        doc.setMatchScore(0.0); // Manual tracking doesn't have a match score
+        doc.setAppliedAt(LocalDateTime.now());
+
+        return jobApplicationRepository.save(doc);
+    }
+
+    @Override
+    public JobApplicationDocument updateApplicationStatus(String id, String status) {
+        LOGGER.info("Updating application {} status to {}", id, status);
+
+        Optional<JobApplicationDocument> optionalDoc = jobApplicationRepository.findById(id);
+        if (optionalDoc.isPresent()) {
+            JobApplicationDocument doc = optionalDoc.get();
+            doc.setStatus(status);
+            return jobApplicationRepository.save(doc);
+        }
+
+        LOGGER.warn("Application not found with id: {}", id);
+        return null;
+    }
+
+    private void saveApplicationAttempt(String userEmail, String jobUrl, String jobTitle, String status, double score,
+            String reason) {
         try {
             JobApplicationDocument doc = new JobApplicationDocument();
             doc.setUserEmail(userEmail);
@@ -295,11 +341,11 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom("onboarding@resend.dev"); // Default Resend testing sender
-            message.setTo(userEmail); 
+            message.setTo(userEmail);
             message.setSubject("Action Required: Writing Prompt for " + jobTitle);
-            message.setText("The auto-apply system detected a writing prompt or assessment for the following job:\n\n" 
-                + jobTitle + "\n" + jobUrl + "\n\nPlease review and apply manually if interested.");
-            
+            message.setText("The auto-apply system detected a writing prompt or assessment for the following job:\n\n"
+                    + jobTitle + "\n" + jobUrl + "\n\nPlease review and apply manually if interested.");
+
             mailSender.send(message);
             LOGGER.info("Sent email notification to {} for job: {}", userEmail, jobUrl);
         } catch (Exception e) {

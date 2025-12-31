@@ -505,4 +505,59 @@
   }
 }
 
+/* Status Select Dropdown */
+.status-select {
+  padding: 8px 28px 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%238b949e' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  border: 1px solid rgba(48, 54, 61, 0.6);
+  outline: none;
+}
+
+.status-select:hover {
+  border-color: rgba(88, 166, 255, 0.5);
+}
+
+.status-select:focus {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+}
+
+.status-select.status-applied {
+  background-color: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+  border-color: rgba(63, 185, 80, 0.3);
+}
+
+.status-select.status-interview {
+  background-color: rgba(136, 87, 229, 0.15);
+  color: #a78bfa;
+  border-color: rgba(136, 87, 229, 0.3);
+}
+
+.status-select.status-offer {
+  background-color: rgba(88, 166, 255, 0.15);
+  color: #58a6ff;
+  border-color: rgba(88, 166, 255, 0.3);
+}
+
+.status-select.status-rejected {
+  background-color: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+  border-color: rgba(248, 81, 73, 0.3);
+}
+
+.status-select option {
+  background: #161b22;
+  color: #e6edf3;
+}
+
 /* Light Theme */

@@ -99,6 +99,30 @@ const AutoApplyPage: React.FC = () => {
     return counts;
   };
 
+  // Update application status
+  const handleStatusUpdate = async (appId: string, newStatus: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE_URL}/api/apply/${appId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (response.ok) {
+        // Update local state
+        setApplications(prev => prev.map(app =>
+          app.id === appId ? { ...app, status: newStatus } : app
+        ));
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+    }
+  };
+
   const counts = getCounts();
 
   return (
@@ -313,26 +337,21 @@ const AutoApplyPage: React.FC = () => {
               </div>
 
               <div className="app-actions">
-                <span className={`status-badge ${getStatusColor(app.status)}`}>
-                  {getStatusLabel(app.status)}
-                </span>
-                <button className="action-btn view" title="View Application">
+                <select
+                  className={`status-select ${getStatusColor(app.status)}`}
+                  value={app.status}
+                  onChange={(e) => handleStatusUpdate(app.id, e.target.value)}
+                >
+                  <option value="applied">Applied</option>
+                  <option value="interview">Interview</option>
+                  <option value="offer">Offer</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+                <button className="action-btn view" title="View Job" onClick={() => app.jobUrl && window.open(app.jobUrl, '_blank')}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                </button>
-                <button className="action-btn delete" title="Delete Application">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  </svg>
-                </button>
-                <button className="action-btn more" title="More Options">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="1" />
-                    <circle cx="12" cy="5" r="1" />
-                    <circle cx="12" cy="19" r="1" />
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
                   </svg>
                 </button>
               </div>

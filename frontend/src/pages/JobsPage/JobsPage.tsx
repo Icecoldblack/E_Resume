@@ -89,6 +89,15 @@ const JobsPage: React.FC = () => {
   const [totalJobs, setTotalJobs] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
 
+  // Application tracking state
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [pendingTrackJob, setPendingTrackJob] = useState<Job | null>(null);
+  const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('appliedJobIds');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+  const [trackingLoading, setTrackingLoading] = useState(false);
+
   // Load saved filters from localStorage on mount
   const [filters, setFilters] = useState<Filters>(() => {
     const saved = localStorage.getItem('jobFilters');
@@ -394,9 +403,12 @@ const JobsPage: React.FC = () => {
   // Reveal full job details and open apply link
   // This costs 1 credit - only called when user clicks Apply
   const handleApply = async (job: Job) => {
-    // If job already has a valid apply link (not blurred), just open it
+    // Open the job link first
     if (job.job_apply_link && !job.job_apply_link.includes('blurred')) {
       window.open(job.job_apply_link, '_blank');
+      // Show the tracking modal after opening the link
+      setPendingTrackJob(job);
+      setShowApplyModal(true);
       return;
     }
 
@@ -416,12 +428,17 @@ const JobsPage: React.FC = () => {
           // Open the apply link
           if (revealedJob.job_apply_link) {
             window.open(revealedJob.job_apply_link, '_blank');
+            // Show the tracking modal after opening the link
+            setPendingTrackJob({ ...job, ...revealedJob });
+            setShowApplyModal(true);
           }
         }
       } else {
         // If reveal fails, try opening current link anyway
         if (job.job_apply_link) {
           window.open(job.job_apply_link, '_blank');
+          setPendingTrackJob(job);
+          setShowApplyModal(true);
         }
       }
     } catch (error) {
@@ -429,8 +446,49 @@ const JobsPage: React.FC = () => {
       // Fallback: try opening current link
       if (job.job_apply_link) {
         window.open(job.job_apply_link, '_blank');
+        setPendingTrackJob(job);
+        setShowApplyModal(true);
       }
     }
+  };
+
+  // Track application in backend
+  const handleTrackApplication = async () => {
+    if (!pendingTrackJob) return;
+
+    setTrackingLoading(true);
+    try {
+      const response = await apiRequest('/api/apply/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobTitle: pendingTrackJob.job_title,
+          companyName: pendingTrackJob.employer_name,
+          jobUrl: pendingTrackJob.job_apply_link,
+          status: 'applied'
+        })
+      });
+
+      if (response.ok) {
+        // Mark job as applied
+        const newAppliedIds = new Set(appliedJobIds);
+        newAppliedIds.add(pendingTrackJob.job_id);
+        setAppliedJobIds(newAppliedIds);
+        localStorage.setItem('appliedJobIds', JSON.stringify([...newAppliedIds]));
+      }
+    } catch (error) {
+      console.error('Error tracking application:', error);
+    } finally {
+      setTrackingLoading(false);
+      setShowApplyModal(false);
+      setPendingTrackJob(null);
+    }
+  };
+
+  // Close modal without tracking
+  const handleSkipTracking = () => {
+    setShowApplyModal(false);
+    setPendingTrackJob(null);
   };
 
   const formatSalary = (job: Job) => {
@@ -858,12 +916,23 @@ const JobsPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleApply(selectedJob)}
-                      className="apply-btn"
+                      className={`apply-btn ${appliedJobIds.has(selectedJob.job_id) ? 'applied' : ''}`}
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                      </svg>
-                      Apply
+                      {appliedJobIds.has(selectedJob.job_id) ? (
+                        <>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          Applied
+                        </>
+                      ) : (
+                        <>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                          </svg>
+                          Apply
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -966,6 +1035,58 @@ const JobsPage: React.FC = () => {
           </div>
         </div>
       </main >
+
+      {/* Application Tracking Modal */}
+      <AnimatePresence>
+        {showApplyModal && pendingTrackJob && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={handleSkipTracking}
+          >
+            <motion.div
+              className="tracking-modal"
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+              </div>
+              <h3>Did you apply to this job?</h3>
+              <p className="modal-job-info">
+                <strong>{pendingTrackJob.job_title}</strong>
+                <span>{pendingTrackJob.employer_name}</span>
+              </p>
+              <p className="modal-description">
+                Track this application to monitor your progress in "My Applications"
+              </p>
+              <div className="modal-actions">
+                <button
+                  className="modal-btn secondary"
+                  onClick={handleSkipTracking}
+                  disabled={trackingLoading}
+                >
+                  Not Yet
+                </button>
+                <button
+                  className="modal-btn primary"
+                  onClick={handleTrackApplication}
+                  disabled={trackingLoading}
+                >
+                  {trackingLoading ? 'Saving...' : 'Yes, I Applied!'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div >
   );
 };

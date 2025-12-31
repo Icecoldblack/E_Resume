@@ -1394,3 +1394,133 @@
   color: #8b949e;
   margin: 0 0 12px 0;
 }
+
+/* Applied Button State */
+.apply-btn.applied {
+  background: rgba(63, 185, 80, 0.2);
+  color: #3fb950;
+  border: 1px solid rgba(63, 185, 80, 0.4);
+}
+
+.apply-btn.applied:hover {
+  background: rgba(63, 185, 80, 0.3);
+  transform: none;
+  box-shadow: none;
+}
+
+/* Application Tracking Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.tracking-modal {
+  background: linear-gradient(180deg, #161b22 0%, #0d1117 100%);
+  border: 1px solid rgba(88, 166, 255, 0.3);
+  border-radius: 20px;
+  padding: 32px;
+  max-width: 420px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.tracking-modal .modal-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  background: rgba(63, 185, 80, 0.15);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3fb950;
+}
+
+.tracking-modal h3 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #e6edf3;
+  margin: 0 0 16px 0;
+}
+
+.tracking-modal .modal-job-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: rgba(48, 54, 61, 0.3);
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.tracking-modal .modal-job-info strong {
+  font-size: 16px;
+  color: #e6edf3;
+}
+
+.tracking-modal .modal-job-info span {
+  font-size: 14px;
+  color: #8b949e;
+}
+
+.tracking-modal .modal-description {
+  font-size: 14px;
+  color: #8b949e;
+  margin: 0 0 24px 0;
+  line-height: 1.5;
+}
+
+.tracking-modal .modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.tracking-modal .modal-btn {
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+}
+
+.tracking-modal .modal-btn.secondary {
+  background: transparent;
+  border: 1px solid rgba(48, 54, 61, 0.8);
+  color: #8b949e;
+}
+
+.tracking-modal .modal-btn.secondary:hover {
+  border-color: rgba(88, 166, 255, 0.5);
+  color: #e6edf3;
+}
+
+.tracking-modal .modal-btn.primary {
+  background: linear-gradient(135deg, #3fb950 0%, #238636 100%);
+  border: none;
+  color: white;
+  box-shadow: 0 4px 16px rgba(63, 185, 80, 0.3);
+}
+
+.tracking-modal .modal-btn.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(63, 185, 80, 0.4);
+}
+
+.tracking-modal .modal-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
