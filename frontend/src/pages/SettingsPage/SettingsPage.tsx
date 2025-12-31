@@ -162,7 +162,7 @@ const SettingsPage: React.FC = () => {
       )
     },
     {
-      id: 'privacy', label: 'Privacy', icon: (
+      id: 'Admin', label: 'Admin', icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
@@ -370,7 +370,7 @@ const SettingsPage: React.FC = () => {
           </div>
         );
 
-      case 'privacy':
+      case 'Admin':
         return <AdminPanel />;
 
       default:
@@ -453,7 +453,7 @@ const SettingsPage: React.FC = () => {
           {/* Settings Menu Sidebar */}
           <div className="settings-menu">
             {menuItems
-              .filter(item => item.id !== 'privacy' || isAdmin)
+              .filter(item => item.id !== 'Admin' || isAdmin)
               .map(item => (
                 <button
                   key={item.id}
