@@ -150,21 +150,59 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     // Handle resume file request (for uploading to job sites)
     if (request.action === "get_resume_file") {
+        console.log("Background: Resume file request received");
+        console.log("Background: Current userEmail:", userEmail);
+        console.log("Background: Auth token present:", !!authToken);
+
         if (!userEmail) {
-            sendResponse({ error: "Not logged in" });
+            console.error("Background: Cannot fetch resume - no user email set");
+            sendResponse({ error: "Not logged in - please connect your EasePath account" });
             return true;
         }
 
-        // Include email param for fallback auth when no token
-        fetch(`${API_BASE_URL}/resume-file?email=${encodeURIComponent(userEmail)}`, {
-            headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {}
+        const resumeUrl = `${API_BASE_URL}/resume-file?email=${encodeURIComponent(userEmail)}`;
+        console.log("Background: Fetching resume from:", resumeUrl);
+
+        fetch(resumeUrl, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+            }
         })
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            .then(async res => {
+                console.log("Background: Resume API response status:", res.status);
+
+                if (!res.ok) {
+                    // Try to get error details from response body
+                    let errorBody = '';
+                    try {
+                        errorBody = await res.text();
+                    } catch (e) {
+                        errorBody = 'Could not read error response';
+                    }
+
+                    console.error("Background: Resume API error:", res.status, errorBody);
+
+                    if (res.status === 401) {
+                        throw new Error("Unauthorized - please re-connect your account");
+                    } else if (res.status === 404) {
+                        throw new Error("No resume found - please upload a resume in the EasePath dashboard");
+                    } else {
+                        throw new Error(`HTTP ${res.status}: ${errorBody}`);
+                    }
+                }
                 return res.json();
             })
             .then(data => {
-                console.log("Background: Got resume file:", data.fileName);
+                console.log("Background: Got resume file successfully:", data.fileName, data.fileSize, "bytes");
+
+                if (!data.fileData) {
+                    console.error("Background: Resume response missing fileData");
+                    sendResponse({ error: "Resume file data is empty - please re-upload your resume" });
+                    return;
+                }
+
                 sendResponse({
                     fileName: data.fileName,
                     contentType: data.contentType,
@@ -173,8 +211,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 });
             })
             .catch(err => {
-                console.error("Background: Failed to get resume:", err);
-                sendResponse({ error: "Could not fetch resume" });
+                console.error("Background: Failed to get resume:", err.message);
+                sendResponse({ error: err.message || "Could not fetch resume" });
             });
 
         return true; // Keep channel open for async

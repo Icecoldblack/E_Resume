@@ -295,6 +295,7 @@ public class ExtensionController {
         doc.setAvailableStartDate(dto.getAvailableStartDate());
         doc.setWillingToRelocate(dto.isWillingToRelocate());
         doc.setPreferredLocations(dto.getPreferredLocations());
+        doc.setWorkExperience(dto.getWorkExperience());
         doc.setUpdatedAt(Instant.now());
 
         UserProfileDocument saved = userProfileRepository.save(doc);
@@ -338,6 +339,7 @@ public class ExtensionController {
         dto.setWillingToRelocate(doc.isWillingToRelocate());
         dto.setPreferredLocations(doc.getPreferredLocations());
         dto.setResumeFileName(doc.getResumeFileName());
+        dto.setWorkExperience(doc.getWorkExperience());
         return dto;
     }
 
@@ -665,12 +667,12 @@ public class ExtensionController {
         if (request.getMaxLength() > 0 && aiResponse.length() > request.getMaxLength()) {
             // Find the last space before the max length to avoid cutting words in half
             int truncateAt = aiResponse.lastIndexOf(' ', request.getMaxLength());
-            
+
             // If no space found (very unlikely), fall back to hard truncation
             if (truncateAt == -1 || truncateAt < request.getMaxLength() / 2) {
                 truncateAt = request.getMaxLength();
             }
-            
+
             aiResponse = aiResponse.substring(0, truncateAt).trim() + "...";
         }
 

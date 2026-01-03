@@ -25,8 +25,7 @@
   width: 100vw;
   height: 100vh;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  /* Removed align-items/justify-content center to prevent clipping when scrolling */
   background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
   padding: 20px;
   overflow-y: auto;
@@ -42,6 +41,8 @@
   max-width: 600px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   border: 1px solid var(--card-border);
+  /* Use margin auto to center in flex container while allowing scroll */
+  margin: auto;
 }
 
 .progress-bar {
@@ -276,4 +277,140 @@
 
 .check-pill.on {
   opacity: 1;
+}
+
+/* Work Experience Section */
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.job-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+
+.job-card:hover {
+  border-color: var(--accent-blue);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.job-title {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.job-company {
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.job-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.job-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  font-size: 16px;
+}
+
+.btn-icon:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-icon.delete:hover {
+  background: rgba(248, 81, 73, 0.1);
+}
+
+.add-job-form {
+  background: rgba(13, 20, 32, 0.5);
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px dashed var(--border-color);
+  margin-top: 24px;
+}
+
+.add-job-form h3 {
+  margin: 0 0 20px 0;
+  color: var(--text-primary);
+  font-size: 18px;
+}
+
+.add-job-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.btn-save-job {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent-blue);
+  color: #0d1117;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-save-job:hover {
+  background: #79b8ff;
+}
+
+.btn-save-job:disabled {
+  background: var(--border-color);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.btn-cancel-job {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel-job:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.helper-text {
+  margin-top: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
 }

@@ -3,10 +3,22 @@
 
 console.log("EasePath: Content script loaded");
 
+// Global flag to stop autofill
+let autofillStopped = false;
+
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "stop_autofill") {
+        console.log("EasePath: Stop signal received");
+        autofillStopped = true;
+        hideOverlay();
+        sendResponse({ status: 'stopped' });
+        return true;
+    }
+
     if (request.action === "autofill") {
         console.log("EasePath: Starting smart autofill process...", { autoSubmit: request.autoSubmit });
+        autofillStopped = false; // Reset stop flag
         performSmartAutofill(request.autoSubmit || false, sendResponse);
         return true;
     }
@@ -120,39 +132,66 @@ async function performSmartAutofill(autoSubmit, sendResponse) {
 
             await sleep(500);
 
-            // Resume upload
+            // === RESUME UPLOAD (FIRST PRIORITY) ===
+            // Resume must be uploaded before filling other fields
             if (!resumeUploaded) {
-                updateOverlay('Uploading resume...');
+                updateOverlay('Uploading resume (priority)...');
                 console.log("EasePath: ==================");
-                console.log("EasePath: ATTEMPTING RESUME UPLOAD");
+                console.log("EasePath: RESUME UPLOAD - ATTEMPT 1");
                 console.log("EasePath: ==================");
+
                 resumeUploaded = await tryUploadResume();
-                console.log("EasePath: Resume upload result:", resumeUploaded);
-                if (resumeUploaded) totalFilled++;
+
+                // Retry once if first attempt failed (some pages need time for inputs to load)
+                if (!resumeUploaded) {
+                    console.log("EasePath: Resume upload failed, waiting 1 second and retrying...");
+                    await sleep(1000);
+                    console.log("EasePath: RESUME UPLOAD - ATTEMPT 2");
+                    resumeUploaded = await tryUploadResume();
+                }
+
+                console.log("EasePath: Final resume upload result:", resumeUploaded ? "SUCCESS" : "FAILED");
+                if (resumeUploaded) {
+                    totalFilled++;
+                } else {
+                    console.warn("EasePath: Resume could not be uploaded - continuing with form fill");
+                    console.warn("EasePath: Possible reasons: No file input found, no resume in account, or upload blocked by site");
+                }
             }
 
             // Fill text fields
+            if (autofillStopped) { hideOverlay(); return; }
             updateOverlay('Filling text fields...');
             const textFilled = await fillAllTextFields(userProfile);
             totalFilled += textFilled;
 
             // Fill dropdowns
+            if (autofillStopped) { hideOverlay(); return; }
             updateOverlay('Filling dropdowns...');
             const dropdownsFilled = await fillAllDropdowns(userProfile);
             totalFilled += dropdownsFilled;
 
             // Click options
+            if (autofillStopped) { hideOverlay(); return; }
             updateOverlay('Selecting options...');
             const optionsClicked = await clickAllOptions(userProfile);
             totalClicked += optionsClicked;
 
             // ATS-specific logic
+            if (autofillStopped) { hideOverlay(); return; }
             if (platform !== 'unknown') {
                 updateOverlay(`Applying ${platform} optimizations...`);
                 await applySpecializedATS(platform, userProfile);
             }
 
+            // Custom Dropdowns (New Feature)
+            if (autofillStopped) { hideOverlay(); return; }
+            updateOverlay('Filling custom dropdowns...');
+            const customDropdownsFilled = await fillCustomDropdowns(userProfile);
+            totalFilled += customDropdownsFilled;
+
             // Custom controls
+            if (autofillStopped) { hideOverlay(); return; }
             updateOverlay('Handling custom controls...');
             const customClicked = await handleCustomControls(userProfile);
             totalClicked += customClicked;
@@ -410,25 +449,84 @@ function findEssayQuestions() {
 
 /**
  * Try to upload resume to file inputs
+ * This runs FIRST before any other field filling to ensure resume is prioritized
  */
 async function tryUploadResume() {
-    const fileInputs = document.querySelectorAll('input[type="file"]');
+    console.log("EasePath: ==================");
+    console.log("EasePath: RESUME UPLOAD STARTING");
+    console.log("EasePath: ==================");
+
+    // CHECK FOR EXISTING UPLOADS (Prevent Duplicates)
+    // Workday specific check
+    const existingUploads = Array.from(document.querySelectorAll('[data-automation-id="file-upload-item"]'));
+    const hasSuccessText = document.body.innerText.includes('Successfully Uploaded');
+
+    if (existingUploads.length > 0 || hasSuccessText) {
+        console.log("EasePath: Resume already uploaded (found existing items or success text), skipping.");
+        return true;
+    }
+
+    // Greenhouse specific check
+    if (document.querySelector('.filename') && document.querySelector('button[aria-label="Remove attachment"]')) {
+        console.log("EasePath: Resume already uploaded (Greenhouse), skipping.");
+        return true;
+    }
+
+    // NOTE: We do NOT click upload buttons here as that opens the native file picker.
+    // Instead, we find file inputs directly and set their files programmatically.
+
+    // Find all file inputs
+    let fileInputs = document.querySelectorAll('input[type="file"]');
     console.log("EasePath: Looking for file inputs, found:", fileInputs.length);
 
+    // If no file inputs found, try platform-specific selectors
     if (fileInputs.length === 0) {
-        console.log("EasePath: No file inputs found on page");
+        const platform = detectPlatform();
+        const platformSelectors = getPlatformResumeSelectors(platform);
+
+        for (const selector of platformSelectors) {
+            const input = document.querySelector(selector);
+            if (input) {
+                fileInputs = [input];
+                console.log("EasePath: Found file input via platform selector:", selector);
+                break;
+            }
+        }
+    }
+
+    if (fileInputs.length === 0) {
+        console.log("EasePath: No file inputs found on page - resume upload skipped");
         return false;
     }
 
     try {
         console.log("EasePath: Requesting resume from backend...");
-        const response = await new Promise(resolve => {
-            chrome.runtime.sendMessage({ action: "get_resume_file" }, resolve);
+        const response = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                console.error("EasePath: Resume request timed out after 10 seconds");
+                resolve({ error: "Request timed out" });
+            }, 10000);
+
+            chrome.runtime.sendMessage({ action: "get_resume_file" }, (res) => {
+                clearTimeout(timeout);
+                if (chrome.runtime.lastError) {
+                    console.error("EasePath: Chrome runtime error:", chrome.runtime.lastError);
+                    resolve({ error: chrome.runtime.lastError.message });
+                } else {
+                    resolve(res);
+                }
+            });
         });
 
-        console.log("EasePath: Resume response:", response ? "received" : "null", response?.fileName || "no filename", response?.error || "no error");
+        console.log("EasePath: Resume response:",
+            response ? "received" : "null",
+            response?.fileName || "no filename",
+            response?.error || "no error",
+            response?.fileSize ? `${response.fileSize} bytes` : "unknown size"
+        );
 
         if (response && response.fileData) {
+            // Convert base64 to file object
             const byteCharacters = atob(response.fileData);
             const byteNumbers = new Array(byteCharacters.length);
             for (let i = 0; i < byteCharacters.length; i++) {
@@ -443,34 +541,87 @@ async function tryUploadResume() {
             const dataTransfer = new DataTransfer();
             dataTransfer.items.add(file);
 
-            // Try to find resume-specific file input first
-            for (const input of fileInputs) {
+            // Sort file inputs by relevance (resume-related first)
+            const sortedInputs = Array.from(fileInputs).sort((a, b) => {
+                const scoreA = getResumeInputScore(a);
+                const scoreB = getResumeInputScore(b);
+                return scoreB - scoreA;
+            });
+
+            // Try resume-specific file inputs first
+            for (const input of sortedInputs) {
                 const label = findLabelForInput(input).toLowerCase();
                 const inputName = (input.name || '').toLowerCase();
                 const inputId = (input.id || '').toLowerCase();
                 const acceptAttr = (input.getAttribute('accept') || '').toLowerCase();
+                const dataAutomationId = (input.getAttribute('data-automation-id') || '').toLowerCase();
 
-                console.log("EasePath: Checking file input - label:", label.substring(0, 30), "name:", inputName, "accept:", acceptAttr);
+                console.log("EasePath: Checking file input:", {
+                    label: label.substring(0, 40),
+                    name: inputName,
+                    id: inputId,
+                    accept: acceptAttr,
+                    automationId: dataAutomationId
+                });
 
-                if (matchesAny(label + ' ' + inputName + ' ' + inputId, ['resume', 'cv', 'curriculum vitae', 'upload', 'file', 'document']) ||
-                    acceptAttr.includes('pdf') || acceptAttr.includes('doc') || acceptAttr === '' || acceptAttr.includes('*')) {
-                    input.files = dataTransfer.files;
-                    nativeDispatchEvents(input);
-                    highlightElement(input);
-                    console.log("EasePath: ✓ Resume uploaded to:", inputName || inputId || "file input");
-                    return true;
+                // Check if this looks like a resume upload input
+                const isResumeInput = matchesAny(
+                    label + ' ' + inputName + ' ' + inputId + ' ' + dataAutomationId,
+                    ['resume', 'cv', 'curriculum vitae', 'upload', 'file', 'document', 'attachment']
+                ) || acceptAttr.includes('pdf') || acceptAttr.includes('doc') || acceptAttr === '' || acceptAttr.includes('*');
+
+                if (isResumeInput) {
+                    // Try to set the files
+                    try {
+                        input.files = dataTransfer.files;
+                        nativeDispatchEvents(input);
+                        highlightElement(input);
+                        console.log("EasePath: ✓ Resume uploaded to:", inputName || inputId || "file input");
+
+                        // Verify upload succeeded
+                        if (input.files && input.files.length > 0) {
+                            console.log("EasePath: ✓ Upload verified - file attached:", input.files[0].name);
+                            return true;
+                        } else {
+                            console.warn("EasePath: Upload may have failed - no files attached after setting");
+                        }
+                    } catch (e) {
+                        console.warn("EasePath: Could not set files on this input:", e.message);
+                        // Try next input
+                    }
                 }
             }
 
-            // Fallback: use first file input
-            console.log("EasePath: Using fallback - first file input");
-            fileInputs[0].files = dataTransfer.files;
-            nativeDispatchEvents(fileInputs[0]);
-            highlightElement(fileInputs[0]);
-            console.log("EasePath: ✓ Resume uploaded (fallback)");
-            return true;
+            // Fallback: use first file input if none matched
+            if (sortedInputs.length > 0) {
+                console.log("EasePath: Using fallback - first file input");
+                try {
+                    sortedInputs[0].files = dataTransfer.files;
+                    nativeDispatchEvents(sortedInputs[0]);
+                    highlightElement(sortedInputs[0]);
+
+                    if (sortedInputs[0].files && sortedInputs[0].files.length > 0) {
+                        console.log("EasePath: ✓ Resume uploaded (fallback)");
+                        return true;
+                    }
+                } catch (e) {
+                    console.error("EasePath: Fallback upload failed:", e.message);
+                }
+            }
         } else {
-            console.error("EasePath: Resume upload failed - no file data received:", response?.error || "unknown error");
+            // No file data in response - show detailed error
+            console.error("EasePath: ==================");
+            console.error("EasePath: RESUME FETCH FAILED");
+            console.error("EasePath: Response received:", response ? "yes" : "no");
+            console.error("EasePath: Error message:", response?.error || "No error message");
+            console.error("EasePath: Has fileData:", !!response?.fileData);
+            console.error("EasePath: ==================");
+
+            if (response?.error) {
+                console.log("EasePath: Specific error:", response.error);
+            } else {
+                console.log("EasePath: Make sure you have uploaded a resume in the EasePath dashboard");
+            }
         }
     } catch (e) {
         console.error("EasePath: Resume upload error:", {
@@ -478,8 +629,7 @@ async function tryUploadResume() {
             stack: e.stack,
             name: e.name
         });
-        
-        // Provide specific error context
+
         if (e instanceof DOMException) {
             console.error("EasePath: DOM operation failed during resume upload - check file input accessibility");
         } else if (e.name === 'InvalidCharacterError') {
@@ -488,6 +638,118 @@ async function tryUploadResume() {
     }
 
     return false;
+}
+
+/**
+ * Try to click upload buttons that reveal hidden file inputs
+ */
+async function triggerHiddenFileInputs() {
+    const uploadButtonSelectors = [
+        // Workday
+        '[data-automation-id="resumeUpload"] button',
+        '[data-automation-id="file-upload-input-ref"]',
+        '[data-automation-id*="upload"] button',
+        // Greenhouse
+        'label[for="resume"]',
+        'label.upload-btn',
+        '.upload-resume-button',
+        // General
+        'button[class*="upload"]',
+        'a[class*="upload"]',
+        '[role="button"][class*="upload"]',
+        '.resume-upload button',
+        '.file-upload button',
+        'label[class*="upload"]',
+        // Text-based
+        'button:contains("Upload")',
+        'button:contains("Resume")',
+    ];
+
+    for (const selector of uploadButtonSelectors) {
+        try {
+            const buttons = document.querySelectorAll(selector);
+            for (const btn of buttons) {
+                const text = getElementText(btn).toLowerCase();
+                if (matchesAny(text, ['upload', 'resume', 'cv', 'attach', 'add file', 'choose file'])) {
+                    if (isElementVisible(btn)) {
+                        console.log("EasePath: Clicking upload trigger button:", text.substring(0, 30));
+                        await performRobustClick(btn);
+                        await sleep(200);
+                    }
+                }
+            }
+        } catch (e) {
+            // Selector might not be valid, continue
+        }
+    }
+}
+
+/**
+ * Get platform-specific resume input selectors
+ */
+function getPlatformResumeSelectors(platform) {
+    const selectors = {
+        workday: [
+            '[data-automation-id="resumeUpload"] input[type="file"]',
+            '[data-automation-id="file-upload-input-ref"]',
+            'input[type="file"][data-automation-id*="resume"]'
+        ],
+        greenhouse: [
+            '#resume',
+            'input[name="job_application[resume]"]',
+            '[data-qa="resume-input"]',
+            'input[type="file"][accept*="pdf"]'
+        ],
+        lever: [
+            'input[type="file"][name="resume"]',
+            '.resume-upload input[type="file"]'
+        ],
+        linkedin: [
+            'input[type="file"]',
+            '[data-test-file-input]'
+        ],
+        indeed: [
+            'input[type="file"]',
+            '[data-testid="resume-upload"]'
+        ]
+    };
+
+    return selectors[platform] || ['input[type="file"]'];
+}
+
+/**
+ * Score a file input based on how likely it is to be a resume upload
+ */
+function getResumeInputScore(input) {
+    let score = 0;
+    const label = findLabelForInput(input).toLowerCase();
+    const name = (input.name || '').toLowerCase();
+    const id = (input.id || '').toLowerCase();
+    const accept = (input.getAttribute('accept') || '').toLowerCase();
+    const automationId = (input.getAttribute('data-automation-id') || '').toLowerCase();
+    const combined = label + ' ' + name + ' ' + id + ' ' + automationId;
+
+    // High confidence indicators
+    if (combined.includes('resume')) score += 100;
+    if (combined.includes('cv')) score += 80;
+    if (combined.includes('curriculum')) score += 80;
+
+    // Medium confidence
+    if (accept.includes('pdf')) score += 50;
+    if (accept.includes('doc')) score += 40;
+    if (combined.includes('upload')) score += 30;
+    if (combined.includes('attach')) score += 25;
+
+    // Low confidence (generic file inputs)
+    if (accept === '' || accept.includes('*')) score += 10;
+
+    // Negative indicators (probably not resume)
+    if (combined.includes('cover') && combined.includes('letter')) score -= 50;
+    if (combined.includes('photo')) score -= 100;
+    if (combined.includes('image')) score -= 100;
+    if (combined.includes('avatar')) score -= 100;
+
+    return score;
 }
 
 /**
@@ -577,13 +839,13 @@ async function generateEssayWithAI(question, jobTitle, companyName, maxLength) {
             maxLength: maxLength
         }, (response) => {
             clearTimeout(timeoutId);
-            
+
             if (chrome.runtime.lastError) {
                 console.error("EasePath: Chrome runtime error during AI essay generation:", chrome.runtime.lastError);
                 resolve(null);
                 return;
             }
-            
+
             if (response && response.success && response.response) {
                 resolve(response.response);
             } else {

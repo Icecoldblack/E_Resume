@@ -14,30 +14,40 @@ function getStoredUserProfile() {
 
 /**
  * Fill a text input element with a value
+ * Uses setNativeValue for React compatibility when available
  */
 function fillTextInput(element, value) {
     if (!element || !value) return false;
 
     try {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.value = '';
-        element.focus();
+
+        // Focus the element first
+        if (typeof element.focus === 'function') element.focus();
         if (typeof element.click === 'function') element.click();
 
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-        const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-
-        if (element.tagName === 'TEXTAREA' && nativeTextAreaValueSetter) {
-            nativeTextAreaValueSetter.call(element, value);
-        } else if (element.tagName === 'INPUT' && nativeInputValueSetter) {
-            nativeInputValueSetter.call(element, value);
+        // Use setNativeValue if available (for React apps)
+        // This is defined in utils.js and handles React's internal value tracker
+        if (typeof setNativeValue === 'function') {
+            setNativeValue(element, value);
         } else {
-            element.value = value;
+            // Fallback: try native setter approach
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+
+            if (element.tagName === 'TEXTAREA' && nativeTextAreaValueSetter) {
+                nativeTextAreaValueSetter.call(element, value);
+            } else if (element.tagName === 'INPUT' && nativeInputValueSetter) {
+                nativeInputValueSetter.call(element, value);
+            } else {
+                element.value = value;
+            }
+
+            nativeDispatchEvents(element);
         }
 
-        nativeDispatchEvents(element);
         highlightElement(element);
-        console.log("EasePath: ✓ Filled:", element.name || element.id, "=", value.substring(0, 30));
+        console.log("EasePath: ✓ Filled:", element.name || element.id || 'unnamed', "=", value.substring(0, 30));
         return true;
     } catch (e) {
         console.error("EasePath: Error in fillTextInput:", e);
@@ -50,6 +60,7 @@ function fillTextInput(element, value) {
  */
 function determineFieldValue(input, profile) {
     const label = findLabelForInput(input);
+    // Combine all context, normalize by replacing _ and - with spaces for matching
     const combined = [
         label,
         input.name || '',
@@ -58,7 +69,12 @@ function determineFieldValue(input, profile) {
         input.getAttribute('aria-label') || '',
         input.getAttribute('autocomplete') || '',
         input.className || ''
-    ].join(' ').toLowerCase();
+    ].join(' ').toLowerCase().replace(/[_-]/g, ' ');
+
+    // --- WORK EXPERIENCE DATA ---
+    // Get the most relevant job (Current or First)
+    const jobs = profile.workExperience || [];
+    const recentJob = jobs.find(j => j.isCurrent) || jobs[0];
 
     // Name fields
     if (matchesAny(combined, ['first name', 'firstname', 'fname', 'given name', 'given-name']) && !combined.includes('last')) {
@@ -67,15 +83,20 @@ function determineFieldValue(input, profile) {
     if (matchesAny(combined, ['last name', 'lastname', 'lname', 'surname', 'family name', 'family-name']) && !combined.includes('first')) {
         return profile.lastName;
     }
-    if (matchesAny(combined, ['full name', 'your name', 'name']) && !combined.includes('first') && !combined.includes('last') && !combined.includes('company') && !combined.includes('school')) {
+    if (matchesAny(combined, ['full name', 'your name', 'name']) && !combined.includes('first') && !combined.includes('last') && !combined.includes('company') && !combined.includes('school') && !combined.includes('employer')) {
         return `${profile.firstName || ''} ${profile.lastName || ''}`.trim();
     }
 
-    // Contact
+    // Contact - be specific to avoid matching extension fields
     if (matchesAny(combined, ['email', 'e-mail', 'mail address'])) {
         return profile.email;
     }
-    if (matchesAny(combined, ['phone', 'mobile', 'cell', 'telephone', 'tel', 'contact number'])) {
+    // Phone - exclude extension, fax, and other non-primary phone fields
+    if (matchesAny(combined, ['phone number', 'phone', 'mobile', 'cell', 'telephone', 'tel', 'contact number']) &&
+        !combined.includes('extension') &&
+        !combined.includes('ext') &&
+        !combined.includes('fax') &&
+        !combined.includes('type')) {
         return profile.phone;
     }
 
@@ -86,14 +107,31 @@ function determineFieldValue(input, profile) {
         return profile.portfolioUrl;
     }
 
-    // Address
-    if (matchesAny(combined, ['street', 'address line 1', 'address1', 'address']) && !combined.includes('email') && !combined.includes('2')) {
+    // Address - CHECK SPECIFIC FIELDS FIRST before general address
+    // City must come BEFORE address check
+    if (matchesAny(combined, ['city', 'town', 'locality']) && !combined.includes('university') && !combined.includes('school') && !combined.includes('employer') && !combined.includes('company')) {
+        return profile.city;
+    }
+    // State must come BEFORE address check
+    if (matchesAny(combined, ['state', 'province', 'region']) && !combined.includes('united') && !combined.includes('country') && !combined.includes('employer')) {
+        return profile.state;
+    }
+    // Zip/Postal must come BEFORE address check
+    if (matchesAny(combined, ['zip', 'postal', 'postcode'])) {
+        return profile.zipCode;
+    }
+    // Country
+    if (matchesAny(combined, ['country', 'nation']) && !combined.includes('phone') && !combined.includes('employer')) {
+        return profile.country || 'United States';
+    }
+    // Address Line - only match if it's specifically an address field, NOT city/state/zip
+    if ((matchesAny(combined, ['street', 'address line', 'address1', 'addressline1']) ||
+        (combined.includes('address') && !combined.includes('email') && !combined.includes('city') &&
+            !combined.includes('state') && !combined.includes('zip') && !combined.includes('postal') &&
+            !combined.includes('country') && !combined.includes('2'))) &&
+        !combined.includes('employer') && !combined.includes('company')) {
         return profile.address;
     }
-    if (matchesAny(combined, ['city', 'town', 'locality'])) return profile.city;
-    if (matchesAny(combined, ['state', 'province', 'region']) && !combined.includes('united')) return profile.state;
-    if (matchesAny(combined, ['zip', 'postal', 'postcode'])) return profile.zipCode;
-    if (matchesAny(combined, ['country', 'nation'])) return profile.country || 'United States';
 
     // Education
     if (matchesAny(combined, ['school', 'university', 'college', 'institution'])) return profile.university;
@@ -102,22 +140,58 @@ function determineFieldValue(input, profile) {
     if (matchesAny(combined, ['graduation', 'grad year', 'year graduated'])) return profile.graduationYear;
     if (matchesAny(combined, ['gpa', 'grade point'])) return profile.gpa;
 
-    // Work experience
-    if (matchesAny(combined, ['years of experience', 'years experience', 'total experience'])) return profile.yearsOfExperience;
-    if (matchesAny(combined, ['current company', 'current employer', 'employer'])) return profile.currentCompany;
-    if (matchesAny(combined, ['current title', 'job title', 'current position', 'current role'])) {
-        return profile.currentTitle || profile.desiredJobTitle;
+    // --- WORK EXPERIENCE MAPPING ---
+    if (recentJob) {
+        // Company Name
+        if (matchesAny(combined, ['company name', 'employer', 'organization', 'business name']) ||
+            (combined.includes('company') && !combined.includes('phone') && !combined.includes('website'))) {
+            return recentJob.company;
+        }
+
+        // Job Title
+        if (matchesAny(combined, ['job title', 'position', 'role title', 'title']) &&
+            !combined.includes('desired') && !combined.includes('project')) {
+            return recentJob.jobTitle;
+        }
+
+        // Start Date (Job)
+        // Be careful not to confuse with "Available Start Date"
+        if (matchesAny(combined, ['start date', 'date started', 'from date']) &&
+            (combined.includes('employment') || combined.includes('job') || combined.includes('work') || combined.includes('history'))) {
+            return recentJob.startDate;
+        }
+
+        // End Date (Job)
+        if (matchesAny(combined, ['end date', 'date ended', 'to date']) &&
+            (combined.includes('employment') || combined.includes('job') || combined.includes('work'))) {
+            return recentJob.isCurrent ? 'Present' : recentJob.endDate;
+        }
+
+        // Description / Responsibilities
+        if (matchesAny(combined, ['description', 'responsibilities', 'duties', 'summary']) &&
+            (combined.includes('job') || combined.includes('work') || combined.includes('role'))) {
+            return recentJob.description;
+        }
+
+        // Job Location
+        if (matchesAny(combined, ['job location', 'work location', 'company location']) ||
+            (combined.includes('location') && (combined.includes('company') || combined.includes('employer')))) {
+            return recentJob.location;
+        }
     }
+
+    // Work experience stats
+    if (matchesAny(combined, ['years of experience', 'years experience', 'total experience'])) return profile.yearsOfExperience;
 
     // Compensation
     if (matchesAny(combined, ['salary', 'compensation', 'pay', 'expected salary'])) return profile.desiredSalary;
 
-    // Start date
+    // Available Start date (Global)
     if (matchesAny(combined, ['start date', 'available', 'earliest start', 'when can you start'])) {
         if (input.type === 'date') {
             const today = new Date();
             today.setDate(today.getDate() + 14);
-            
+
             // If the date falls on a weekend, round to next Monday
             const dayOfWeek = today.getDay();
             if (dayOfWeek === 0) { // Sunday
@@ -125,7 +199,7 @@ function determineFieldValue(input, profile) {
             } else if (dayOfWeek === 6) { // Saturday
                 today.setDate(today.getDate() + 2);
             }
-            
+
             return today.toISOString().split('T')[0];
         }
         return profile.availableStartDate || 'Immediately';
@@ -162,21 +236,44 @@ async function fillAllTextFields(profile) {
         textarea
     `);
 
+    console.log("EasePath: Found", inputs.length, "potential text inputs");
+
     for (const input of inputs) {
-        if (!isElementVisible(input)) continue;
-        if (input.disabled || input.readOnly) continue;
-        if (input.value && input.value.trim() !== '') continue;
-        if (input.type === 'hidden') continue;
-        if (input.tagName === 'TEXTAREA' && isEssayTextarea(input)) continue;
+        const label = findLabelForInput ? findLabelForInput(input) : '';
+        const inputInfo = `${input.tagName} name="${input.name}" id="${input.id}" label="${label.substring(0, 30)}"`;
+
+        if (!isElementVisible(input)) {
+            console.log("EasePath: Skipped (not visible):", inputInfo);
+            continue;
+        }
+        if (input.disabled || input.readOnly) {
+            console.log("EasePath: Skipped (disabled/readonly):", inputInfo);
+            continue;
+        }
+        if (input.value && input.value.trim() !== '') {
+            console.log("EasePath: Skipped (already filled):", inputInfo, "value:", input.value.substring(0, 20));
+            continue;
+        }
+        if (input.type === 'hidden') {
+            continue;
+        }
+        if (input.tagName === 'TEXTAREA' && isEssayTextarea(input)) {
+            console.log("EasePath: Skipped (essay):", inputInfo);
+            continue;
+        }
 
         const value = determineFieldValue(input, profile);
         if (value) {
+            console.log("EasePath: Filling:", inputInfo, "with value:", value.substring(0, 30));
             await fillTextInput(input, value);
             filled++;
             await sleep(50);
+        } else {
+            console.log("EasePath: No value found for:", inputInfo);
         }
     }
 
+    console.log("EasePath: fillAllTextFields completed. Filled:", filled);
     return filled;
 }
 
@@ -663,6 +760,98 @@ function isEssayTextarea(textarea) {
     if (matchesAny(label, ['cover letter', 'why do you want', 'tell us about', 'describe'])) return true;
 
     return false;
+}
+/**
+ * Handle "Custom" Dropdowns (Divs/Buttons acting as Selects)
+ * Look for role="listbox" or role="combobox"
+ * Also handle Greenhouse/React style custom selects
+ */
+async function fillCustomDropdowns(profile) {
+    // Find triggers (buttons that own a listbox)
+    const triggers = document.querySelectorAll('[aria-haspopup="listbox"], [role="combobox"], .select2-selection, .css-1hwfws3, button[aria-haspopup="true"]');
+    let filled = 0;
+
+    console.log("EasePath: Found", triggers.length, "custom dropdown triggers");
+
+    for (const trigger of triggers) {
+        if (trigger.dataset.easepathFilled) continue;
+
+        const label = findLabelForInput(trigger).toLowerCase();
+        const ariaLabel = (trigger.getAttribute('aria-label') || '').toLowerCase();
+        const combined = label + ' ' + ariaLabel;
+        let targetValue = null;
+
+        console.log("EasePath: Checking custom dropdown:", combined.substring(0, 40));
+
+        // Extended mapping for more field types
+        if (matchesAny(combined, ['country', 'citizenship', 'nationality'])) {
+            targetValue = profile.country || 'United States';
+        } else if (matchesAny(combined, ['state', 'province', 'region'])) {
+            targetValue = profile.state;
+        } else if (matchesAny(combined, ['gender', 'sex'])) {
+            targetValue = profile.gender || 'Prefer not to disclose';
+        } else if (matchesAny(combined, ['veteran', 'military'])) {
+            targetValue = profile.veteranStatus || 'I am not a protected veteran';
+        } else if (matchesAny(combined, ['race', 'ethnicity', 'ethnic'])) {
+            targetValue = profile.ethnicity || 'Decline to self-identify';
+        } else if (matchesAny(combined, ['disability', 'disabled'])) {
+            targetValue = profile.disabilityStatus || 'I do not wish to answer';
+        } else if (matchesAny(combined, ['degree', 'education level', 'highest degree'])) {
+            targetValue = profile.highestDegree || "Bachelor's";
+        } else if (matchesAny(combined, ['experience', 'years experience', 'level of experience'])) {
+            targetValue = profile.yearsOfExperience || '2-5 years';
+        } else if (matchesAny(combined, ['how did you hear', 'source', 'referral'])) {
+            targetValue = profile.referralSource || 'LinkedIn';
+        } else if (matchesAny(combined, ['phone type', 'phone device'])) {
+            targetValue = 'Mobile';
+        }
+
+        if (!targetValue) continue;
+
+        console.log("EasePath: Attempting to set custom dropdown:", combined.substring(0, 30), "to", targetValue);
+
+        // Open dropdown
+        await performRobustClick(trigger);
+        await sleep(400);
+
+        // Find option - try multiple selector strategies
+        const optionSelectors = [
+            '[role="option"]',
+            '.select2-results__option',
+            '.active-result',
+            '[data-value]',
+            'li[class*="option"]',
+            'div[class*="option"]'
+        ];
+
+        let optionFound = false;
+        for (const selector of optionSelectors) {
+            const options = document.querySelectorAll(selector);
+            for (const option of options) {
+                const optionText = (option.innerText || option.textContent || '').toLowerCase();
+                if (optionText.includes(targetValue.toLowerCase())) {
+                    console.log("EasePath: ✓ Clicking dropdown option:", optionText.substring(0, 30));
+                    await performRobustClick(option);
+                    trigger.dataset.easepathFilled = 'true';
+                    filled++;
+                    optionFound = true;
+                    break;
+                }
+            }
+            if (optionFound) break;
+        }
+
+        if (!optionFound) {
+            // Close dropdown by clicking elsewhere
+            document.body.click();
+            await sleep(100);
+        }
+
+        await sleep(200);
+    }
+
+    console.log("EasePath: fillCustomDropdowns completed. Filled:", filled);
+    return filled;
 }
 
 console.log("EasePath: form-filler.js loaded");

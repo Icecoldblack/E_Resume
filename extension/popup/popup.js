@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const profileConnected = document.getElementById('profile-connected');
     const syncBtn = document.getElementById('sync-btn');
     const autofillBtn = document.getElementById('autofill-btn');
+    const stopBtn = document.getElementById('stop-btn');
     const autoApplyToggle = document.getElementById('auto-apply-toggle');
     const feedbackBtn = document.getElementById('feedback-btn');
     const reportBtn = document.getElementById('report-btn');
@@ -52,17 +53,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // Auto-apply toggle
-    autoApplyToggle.addEventListener('change', async () => {
-        autoApplyEnabled = autoApplyToggle.checked;
-        await chrome.storage.local.set({ autoApplyEnabled });
-
-        if (autoApplyEnabled) {
-            autofillBtn.textContent = '🚀 Auto-Apply Now';
-            showMessage('Auto-Apply enabled! Forms will be filled and submitted automatically.', 'success');
-        } else {
-            autofillBtn.textContent = '✨ Fill & Apply Now';
-        }
+    // Auto-apply toggle (DISABLED - Pro feature)
+    // The toggle is now disabled in HTML, but we add a click handler to show upgrade message
+    autoApplyToggle.parentElement.addEventListener('click', (e) => {
+        e.preventDefault();
+        showMessage('🔒 Auto-Apply is a Black feature. Upgrade to unlock AI-powered automatic submissions!', 'warning');
     });
 
     // Sync button
@@ -109,6 +104,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     autofillBtn.addEventListener('click', async () => {
         await performAutofill();
     });
+
+    // Stop button - to cancel autofill in progress
+    let currentTabId = null;
+    stopBtn.addEventListener('click', async () => {
+        if (currentTabId) {
+            chrome.tabs.sendMessage(currentTabId, { action: "stop_autofill" }, () => {
+                stopBtn.classList.add('hidden');
+                autofillBtn.disabled = false;
+                autofillBtn.classList.remove('loading');
+                autofillBtn.textContent = 'Fill & Apply Now';
+                statsText.textContent = 'Stopped';
+                showMessage('Autofill stopped by user.', 'warning');
+            });
+        }
+    });
+
 
     // Feedback button
     feedbackBtn.addEventListener('click', async () => {
@@ -182,12 +193,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             featureBanner.style.display = 'none';
         }
 
-        // Restore auto-apply toggle state
-        if (storage.autoApplyEnabled) {
-            autoApplyToggle.checked = true;
-            autoApplyEnabled = true;
-            autofillBtn.textContent = '🚀 Auto-Apply Now';
-        }
+        // Auto-apply is disabled (Pro feature) - don't restore state
+        autoApplyEnabled = false;
 
         // Update learning stats
         if (storage.learningStats) {
@@ -506,6 +513,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         autofillBtn.textContent = '';
         statsText.textContent = 'Scanning page...';
 
+        // Show stop button
+        stopBtn.classList.remove('hidden');
+
         try {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             currentUrl = tab.url;
@@ -520,14 +530,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            // Try to inject content script first (in case it wasn't loaded)
+            // Try to inject content scripts first (in case they weren't loaded)
             try {
                 await chrome.scripting.executeScript({
                     target: { tabId: tab.id },
-                    files: ['scripts/content.js']
+                    files: [
+                        'scripts/utils.js',
+                        'scripts/dom-analyzer.js',
+                        'scripts/ui.js',
+                        'scripts/form-filler.js',
+                        'scripts/ats-adapters.js',
+                        'scripts/content.js'
+                    ]
                 });
             } catch (injectError) {
-                // Script might already be injected, continue anyway
+                // Scripts might already be injected, continue anyway
                 console.log('Script injection note:', injectError.message);
             }
 
@@ -535,6 +552,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             await new Promise(resolve => setTimeout(resolve, 100));
 
             // Send autofill request with auto-submit flag
+            // Store current tab ID for stop functionality
+            currentTabId = tab.id;
+
             chrome.tabs.sendMessage(tab.id, {
                 action: "autofill",
                 autoSubmit: autoApplyEnabled
@@ -542,6 +562,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 autofillBtn.disabled = false;
                 autofillBtn.classList.remove('loading');
                 autofillBtn.textContent = originalText;
+                stopBtn.classList.add('hidden');
 
                 if (chrome.runtime.lastError) {
                     statsText.textContent = 'Error occurred';
