@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,23 +8,44 @@
     <link rel="stylesheet" href="popup.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <div class="container">
         <!-- Header with tabs -->
         <header class="header">
             <div class="logo">
-                <span class="logo-icon">⚡</span>
+                <img src="../images/logo.png" alt="EasePath" class="logo-icon" width="24" height="24">
                 <span class="logo-text">EasePath</span>
             </div>
             <div class="header-actions">
-                <button id="settings-btn" class="icon-btn" title="Settings">⚙️</button>
+                <button id="settings-btn" class="icon-btn" title="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                </button>
             </div>
         </header>
 
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab active" data-tab="autofill">✨ Auto Apply</button>
-            <button class="tab" data-tab="profile">👤 Profile</button>
+            <button class="tab active" data-tab="autofill">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
+                Auto Apply
+            </button>
+            <button class="tab" data-tab="profile">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                </svg>
+                Profile
+            </button>
         </div>
 
         <!-- Autofill Tab -->
@@ -31,14 +53,26 @@
             <!-- Not Connected State -->
             <div id="not-connected" class="section">
                 <div class="info-card warning">
-                    <div class="info-icon">🔗</div>
+                    <div class="info-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                        </svg>
+                    </div>
                     <div class="info-content">
                         <strong>Not Connected</strong>
                         <p>Please log in to EasePath website first, then click below to sync.</p>
                     </div>
                 </div>
                 <button id="sync-btn" class="primary-btn full-width">
-                    🔄 Sync with EasePath
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10" />
+                        <polyline points="1 20 1 14 7 14" />
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                    Sync with EasePath
                 </button>
                 <p class="help-text">
                     Don't have an account? <a href="http://localhost:5173" target="_blank">Sign up here</a>
@@ -47,27 +81,48 @@
 
             <!-- Connected State -->
             <div id="connected" class="section hidden">
-                <!-- Auto-Apply Toggle -->
-                <div class="auto-apply-section">
+                <!-- Auto-Apply Toggle (PRO Feature - Disabled) -->
+                <div class="auto-apply-section pro-locked">
                     <div class="auto-apply-header">
                         <div class="auto-apply-title">
-                            <span>🚀</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                <polyline points="22 4 12 14.01 9 11.01" />
+                            </svg>
                             Auto-Apply Mode
+                            <span class="pro-badge">BLACK</span>
                         </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="auto-apply-toggle">
+                        <label class="toggle-switch disabled">
+                            <input type="checkbox" id="auto-apply-toggle" disabled>
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
                     <p class="auto-apply-description">
-                        When enabled, AI will fill ALL fields and automatically submit the application for you.
+                        AI fills ALL fields and automatically submits applications for you.
+                    </p>
+                    <p class="pro-upgrade-text">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                        Upgrade to Black to unlock
                     </p>
                 </div>
 
                 <!-- AI Feature Banner -->
                 <div class="feature-banner" id="feature-banner">
                     <div class="feature-header">
-                        <span class="feature-icon">🧠</span>
+                        <span class="feature-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path
+                                    d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z" />
+                                <circle cx="12" cy="14" r="2" />
+                                <path d="M12 16v2" />
+                            </svg>
+                        </span>
                         <span class="feature-title">AI-Powered Smart Fill</span>
                         <button id="close-banner" class="close-btn">×</button>
                     </div>
@@ -82,53 +137,110 @@
                 <!-- Main Action Card -->
                 <div class="action-card">
                     <div class="action-header">
-                        <span class="action-icon">⚡</span>
+                        <span class="action-icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="url(#actionGradient)"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <defs>
+                                    <linearGradient id="actionGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#6366f1" />
+                                        <stop offset="100%" stop-color="#8b5cf6" />
+                                    </linearGradient>
+                                </defs>
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                            </svg>
+                        </span>
                         <div class="action-text">
                             <strong>Ready to apply!</strong>
                             <span id="stats-text" class="stats">Scanning page...</span>
                         </div>
                     </div>
-                    <button id="autofill-btn" class="autofill-btn">
-                        ✨ Fill & Apply Now
-                    </button>
+                    <div class="action-buttons">
+                        <button id="autofill-btn" class="autofill-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 3v12" />
+                                <path d="m8 11 4 4 4-4" />
+                                <path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4" />
+                            </svg>
+                            Fill & Apply Now
+                        </button>
+                        <button id="stop-btn" class="stop-btn hidden">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="6" y="6" width="12" height="12" rx="2" />
+                            </svg>
+                            Stop
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Status Messages -->
                 <div id="message-area" class="message-area hidden"></div>
 
-                <!-- Learning Progress Section -->
-                <div class="learning-section">
+                <!-- Learning Progress Section (PRO Feature - Disabled) -->
+                <div class="learning-section pro-locked">
                     <div class="learning-header">
-                        <span class="learning-icon">📚</span>
+                        <span class="learning-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                            </svg>
+                        </span>
                         <span class="learning-title">AI Learning Progress</span>
+                        <span class="pro-badge">BLACK</span>
                     </div>
                     <div class="learning-progress">
-                        <div class="progress-bar">
+                        <div class="progress-bar disabled">
                             <div class="progress-fill" id="learning-progress" style="width: 0%"></div>
                         </div>
-                        <span class="progress-text" id="learning-text">0 patterns learned</span>
+                        <span class="progress-text" id="learning-text">Upgrade to unlock</span>
                     </div>
                 </div>
 
                 <!-- Resume Section -->
                 <div class="resume-section">
                     <div class="section-header">
-                        <span class="section-icon">📄</span>
+                        <span class="section-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                                <line x1="16" y1="13" x2="8" y2="13" />
+                                <line x1="16" y1="17" x2="8" y2="17" />
+                                <polyline points="10 9 9 9 8 9" />
+                            </svg>
+                        </span>
                         <span class="section-title">Resume</span>
                     </div>
                     <div class="resume-info">
                         <span id="resume-name" class="resume-name">No resume uploaded</span>
-                        <button id="view-resume-btn" class="icon-btn small hidden">👁️</button>
+                        <button id="view-resume-btn" class="icon-btn small hidden">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
                 <!-- Quick Actions -->
                 <div class="quick-actions">
                     <button id="feedback-btn" class="action-link">
-                        <span>✓</span> Worked!
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        Worked!
                     </button>
                     <button id="report-btn" class="action-link">
-                        <span>🚩</span> Report Issue
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                            <line x1="4" y1="22" x2="4" y2="15" />
+                        </svg>
+                        Report Issue
                     </button>
                 </div>
             </div>
@@ -138,14 +250,20 @@
         <div id="profile-tab" class="tab-content">
             <div id="profile-not-connected" class="section">
                 <div class="info-card">
-                    <div class="info-icon">👤</div>
+                    <div class="info-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                        </svg>
+                    </div>
                     <div class="info-content">
                         <strong>Connect to view profile</strong>
                         <p>Link your EasePath account to see your profile details.</p>
                     </div>
                 </div>
             </div>
-            
+
             <div id="profile-connected" class="section hidden">
                 <div class="profile-header">
                     <div class="avatar" id="avatar">?</div>
@@ -154,7 +272,7 @@
                         <span id="profile-email" class="profile-email">Loading...</span>
                     </div>
                 </div>
-                
+
                 <div class="profile-stats">
                     <div class="stat">
                         <span class="stat-value" id="fields-count">0</span>
@@ -169,7 +287,14 @@
                 <!-- Learning Stats -->
                 <div class="learning-section">
                     <div class="learning-header">
-                        <span class="learning-icon">🎯</span>
+                        <span class="learning-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <circle cx="12" cy="12" r="6" />
+                                <circle cx="12" cy="12" r="2" />
+                            </svg>
+                        </span>
                         <span class="learning-title">Success Rate</span>
                     </div>
                     <div class="learning-progress">
@@ -182,10 +307,20 @@
 
                 <div class="profile-actions">
                     <a href="http://localhost:5173/settings" target="_blank" class="secondary-btn full-width">
-                        ✏️ Edit Profile
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                        </svg>
+                        Edit Profile
                     </a>
                     <a href="http://localhost:5173/dashboard" target="_blank" class="secondary-btn full-width">
-                        📊 View Dashboard
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10" />
+                            <line x1="12" y1="20" x2="12" y2="4" />
+                            <line x1="6" y1="20" x2="6" y2="14" />
+                        </svg>
+                        View Dashboard
                     </a>
                     <button id="disconnect-btn" class="text-btn">
                         Disconnect Account
@@ -202,4 +337,5 @@
     </div>
     <script src="popup.js"></script>
 </body>
+
 </html>

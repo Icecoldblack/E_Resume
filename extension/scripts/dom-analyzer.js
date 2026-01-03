@@ -60,30 +60,152 @@ function analyzePageContent() {
 
 /**
  * Detect the job application platform using URL and DOM markers
+ * This enables platform-specific web scraping for reliable autofill
+ * 
+ * Detection priority:
+ * 1. URL-based detection (most reliable)
+ * 2. DOM-based detection (fallback for embedded forms)
+ * 3. Script/resource-based detection (for iframes and widgets)
  */
 function detectPlatform() {
     const hostname = window.location.hostname.toLowerCase();
+    const pathname = window.location.pathname.toLowerCase();
     const html = document.documentElement.innerHTML.toLowerCase();
 
-    if (hostname.includes('greenhouse.io') || hostname.includes('boards.greenhouse')) return 'greenhouse';
-    if (hostname.includes('lever.co')) return 'lever';
-    if (hostname.includes('workday') || hostname.includes('myworkdayjobs')) return 'workday';
-    if (hostname.includes('taleo')) return 'taleo';
-    if (hostname.includes('icims')) return 'icims';
-    if (hostname.includes('linkedin')) return 'linkedin';
-    if (hostname.includes('indeed')) return 'indeed';
-    if (hostname.includes('glassdoor')) return 'glassdoor';
-    if (hostname.includes('smartrecruiters')) return 'smartrecruiters';
-    if (hostname.includes('jobvite')) return 'jobvite';
-    if (hostname.includes('ashbyhq')) return 'ashby';
-    if (hostname.includes('breezy')) return 'breezy';
-    if (hostname.includes('bamboohr')) return 'bamboohr';
-    if (hostname.includes('successfactors')) return 'successfactors';
+    // === URL-based detection (most reliable) ===
 
-    if (document.querySelector('meta[content="Greenhouse"]')) return 'greenhouse';
-    if (document.querySelector('link[href*="lever-packages"]')) return 'lever';
-    if (html.includes('workday-logo') || html.includes('workday-brand')) return 'workday';
-    if (html.includes('smartrecruiters-logo')) return 'smartrecruiters';
+    // Workday - various domain patterns (wd1-wd5 are different Workday instances)
+    if (hostname.includes('workday') ||
+        hostname.includes('myworkdayjobs') ||
+        hostname.includes('wd1.myworkdaysite') ||
+        hostname.includes('wd2.myworkdaysite') ||
+        hostname.includes('wd3.myworkdaysite') ||
+        hostname.includes('wd4.myworkdaysite') ||
+        hostname.includes('wd5.myworkdaysite') ||
+        hostname.match(/wd\d+\./)) return 'workday';
+
+    // Greenhouse - job boards and direct (including custom subdomains)
+    if (hostname.includes('greenhouse.io') ||
+        hostname.includes('boards.greenhouse') ||
+        hostname.includes('job-boards.greenhouse') ||
+        hostname.includes('grnh.se')) return 'greenhouse';
+
+    // Lever
+    if (hostname.includes('lever.co') ||
+        hostname.includes('jobs.lever') ||
+        hostname.includes('hire.lever')) return 'lever';
+
+    // iCIMS - various domain patterns
+    if (hostname.includes('icims') ||
+        hostname.includes('icims.com') ||
+        (hostname.includes('careers-') && pathname.includes('icims'))) return 'icims';
+
+    // SmartRecruiters
+    if (hostname.includes('smartrecruiters') ||
+        hostname.includes('jobs.smartrecruiters') ||
+        hostname.includes('smrtr.io')) return 'smartrecruiters';
+
+    // Ashby
+    if (hostname.includes('ashbyhq') ||
+        hostname.includes('jobs.ashby') ||
+        hostname.includes('app.ashbyhq')) return 'ashby';
+
+    // Jobvite
+    if (hostname.includes('jobvite') ||
+        hostname.includes('jobs.jobvite') ||
+        hostname.includes('app.jobvite')) return 'jobvite';
+
+    // Taleo (Oracle) - various patterns
+    if (hostname.includes('taleo') ||
+        hostname.includes('taleo.net') ||
+        (hostname.includes('oracle') && pathname.includes('taleo')) ||
+        hostname.includes('oraclecloud') && (pathname.includes('recruit') || pathname.includes('hcmui'))) return 'taleo';
+
+    // BambooHR
+    if (hostname.includes('bamboohr') ||
+        hostname.includes('bambuhr') ||
+        hostname.includes('bamboo.hr')) return 'bamboohr';
+
+    // SAP SuccessFactors
+    if (hostname.includes('successfactors') ||
+        (hostname.includes('sap.com') && pathname.includes('career')) ||
+        hostname.includes('jobs.sap')) return 'successfactors';
+
+    // Breezy HR
+    if (hostname.includes('breezy') ||
+        hostname.includes('breezyhr') ||
+        hostname.includes('app.breezy.hr')) return 'breezy';
+
+    // LinkedIn Easy Apply
+    if (hostname.includes('linkedin')) return 'linkedin';
+
+    // Indeed
+    if (hostname.includes('indeed')) return 'indeed';
+
+    // Glassdoor
+    if (hostname.includes('glassdoor')) return 'glassdoor';
+
+    // ZipRecruiter
+    if (hostname.includes('ziprecruiter')) return 'ziprecruiter';
+
+    // === DOM-based detection (fallback for embedded forms) ===
+
+    // Greenhouse markers (including embedded iframes)
+    if (document.querySelector('meta[content="Greenhouse"]') ||
+        document.querySelector('[data-qa*="greenhouse"]') ||
+        document.querySelector('#grnhse_app') ||
+        document.querySelector('iframe[src*="greenhouse"]') ||
+        html.includes('greenhouse-job-application') ||
+        html.includes('grnhse_job_board')) return 'greenhouse';
+
+    // Lever markers
+    if (document.querySelector('link[href*="lever-packages"]') ||
+        document.querySelector('.lever-application-form') ||
+        document.querySelector('iframe[src*="lever.co"]') ||
+        html.includes('lever-jobs')) return 'lever';
+
+    // Workday markers (data-automation-id is the key indicator)
+    if (document.querySelector('[data-automation-id]') &&
+        (html.includes('workday-logo') ||
+            html.includes('workday-brand') ||
+            html.includes('workday') ||
+            document.querySelector('[data-automation-id*="legalName"]') ||
+            document.querySelector('[data-automation-id*="addressSection"]'))) return 'workday';
+
+    // SmartRecruiters markers
+    if (html.includes('smartrecruiters-logo') ||
+        document.querySelector('[data-test*="smartrecruiters"]') ||
+        document.querySelector('iframe[src*="smartrecruiters"]')) return 'smartrecruiters';
+
+    // iCIMS markers
+    if (document.querySelector('[id*="icims"]') ||
+        document.querySelector('iframe[src*="icims"]') ||
+        html.includes('icims.com')) return 'icims';
+
+    // Jobvite markers
+    if (document.querySelector('.jv-application') ||
+        document.querySelector('[class*="jobvite"]') ||
+        html.includes('jobvite-logo')) return 'jobvite';
+
+    // Ashby markers
+    if (document.querySelector('[data-ashby]') ||
+        document.querySelector('iframe[src*="ashby"]') ||
+        html.includes('ashby-application')) return 'ashby';
+
+    // BambooHR markers
+    if (document.querySelector('[id*="bamboo"]') ||
+        document.querySelector('[class*="bamboo"]') ||
+        html.includes('bamboohr-logo')) return 'bamboohr';
+
+    // Taleo markers (Oracle)
+    if (document.querySelector('[id*="taleo"]') ||
+        html.includes('taleo-logo') ||
+        (html.includes('oraclecloud') && html.includes('recruit'))) return 'taleo';
+
+    // SuccessFactors markers
+    if (document.querySelector('[id*="successfactors"]') ||
+        html.includes('successfactors') ||
+        html.includes('sap recruiting')) return 'successfactors';
 
     return 'unknown';
 }

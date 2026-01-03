@@ -442,6 +442,102 @@ public class UserProfileDocument {
     /**
      * Get the number of uploads remaining in the current 3-day window.
      */
+    // Work Experience
+    private List<WorkExperience> workExperience;
+
+    // ... existing methods ...
+
+    public List<WorkExperience> getWorkExperience() {
+        return workExperience;
+    }
+
+    public void setWorkExperience(List<WorkExperience> workExperience) {
+        this.workExperience = workExperience;
+    }
+
+    /**
+     * Represents a single job experience entry.
+     */
+    public static class WorkExperience {
+        private String company;
+        private String jobTitle;
+        private String startDate; // YYYY-MM
+        private String endDate; // YYYY-MM or "Present"
+        private boolean isCurrent;
+        private String description;
+        private String location;
+
+        public WorkExperience() {
+        }
+
+        public WorkExperience(String company, String jobTitle, String startDate, String endDate, boolean isCurrent,
+                String description, String location) {
+            this.company = company;
+            this.jobTitle = jobTitle;
+            this.startDate = startDate;
+            this.endDate = endDate;
+            this.isCurrent = isCurrent;
+            this.description = description;
+            this.location = location;
+        }
+
+        public String getCompany() {
+            return company;
+        }
+
+        public void setCompany(String company) {
+            this.company = company;
+        }
+
+        public String getJobTitle() {
+            return jobTitle;
+        }
+
+        public void setJobTitle(String jobTitle) {
+            this.jobTitle = jobTitle;
+        }
+
+        public String getStartDate() {
+            return startDate;
+        }
+
+        public void setStartDate(String startDate) {
+            this.startDate = startDate;
+        }
+
+        public String getEndDate() {
+            return endDate;
+        }
+
+        public void setEndDate(String endDate) {
+            this.endDate = endDate;
+        }
+
+        public boolean isCurrent() {
+            return isCurrent;
+        }
+
+        public void setCurrent(boolean current) {
+            isCurrent = current;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public void setDescription(String description) {
+            this.description = description;
+        }
+
+        public String getLocation() {
+            return location;
+        }
+
+        public void setLocation(String location) {
+            this.location = location;
+        }
+    }
+
     public int getRemainingUploads() {
         if (this.resumeUploadTimestamps == null) {
             return 3;

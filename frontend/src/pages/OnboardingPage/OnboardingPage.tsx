@@ -49,6 +49,19 @@ interface OnboardingData {
   gender: string;
   ethnicity: string;
   lgbtqIdentity: string;
+
+  // Work Experience
+  workExperience: WorkExperience[];
+}
+
+export interface WorkExperience {
+  company: string;
+  jobTitle: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+  description: string;
+  location: string;
 }
 
 const OnboardingPage: React.FC = () => {
@@ -105,9 +118,22 @@ const OnboardingPage: React.FC = () => {
     gender: 'Prefer not to say',
     ethnicity: 'Prefer not to say',
     lgbtqIdentity: 'Prefer not to say',
+
+    workExperience: [],
   });
 
-  const totalSteps = 5;
+  const [editingJobIndex, setEditingJobIndex] = useState<number | null>(null);
+  const [jobForm, setJobForm] = useState<WorkExperience>({
+    company: '',
+    jobTitle: '',
+    startDate: '',
+    endDate: '',
+    isCurrent: false,
+    description: '',
+    location: ''
+  });
+
+  const totalSteps = 6;
 
   // Check if user already completed onboarding and load existing data
   useEffect(() => {
@@ -182,6 +208,8 @@ const OnboardingPage: React.FC = () => {
             gender: profile.gender || prev.gender,
             ethnicity: profile.ethnicity || prev.ethnicity,
             lgbtqIdentity: profile.lgbtqIdentity || prev.lgbtqIdentity,
+
+            workExperience: profile.workExperience || prev.workExperience || [],
           }));
         }
       } catch (err) {
@@ -224,6 +252,67 @@ const OnboardingPage: React.FC = () => {
     }));
   };
 
+  // Work Experience Helpers
+  const handleJobChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    setJobForm(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+    }));
+  };
+
+  const saveJob = () => {
+    if (!jobForm.company || !jobForm.jobTitle) return;
+
+    if (editingJobIndex !== null) {
+      // Update existing
+      const updated = [...formData.workExperience];
+      updated[editingJobIndex] = jobForm;
+      setFormData(prev => ({ ...prev, workExperience: updated }));
+      setEditingJobIndex(null);
+    } else {
+      // Add new
+      setFormData(prev => ({
+        ...prev,
+        workExperience: [...prev.workExperience, jobForm]
+      }));
+    }
+
+    // Reset form
+    setJobForm({
+      company: '',
+      jobTitle: '',
+      startDate: '',
+      endDate: '',
+      isCurrent: false,
+      description: '',
+      location: ''
+    });
+  };
+
+  const editJob = (index: number) => {
+    setJobForm(formData.workExperience[index]);
+    setEditingJobIndex(index);
+  };
+
+  const deleteJob = (index: number) => {
+    const updated = formData.workExperience.filter((_, i) => i !== index);
+    setFormData(prev => ({ ...prev, workExperience: updated }));
+  };
+
+  const cancelEdit = () => {
+    setEditingJobIndex(null);
+    setJobForm({
+      company: '',
+      jobTitle: '',
+      startDate: '',
+      endDate: '',
+      isCurrent: false,
+      description: '',
+      location: ''
+    });
+  };
+
   const validateStep = (step: number): boolean => {
     setError(null);
     switch (step) {
@@ -242,6 +331,15 @@ const OnboardingPage: React.FC = () => {
       case 3:
         if (!formData.isUsCitizen && !formData.workAuthorization) {
           setError('Please select your work authorization status');
+          return false;
+        }
+        return true;
+      case 4:
+        // Work Experience is optional (can skip if no experience)
+        // If they are in the middle of editing/adding, warn them?
+        // Ideally we auto-save or force them to finish/cancel.
+        if (jobForm.company || jobForm.jobTitle) {
+          setError('Please save or cancel your current entry before continuing.');
           return false;
         }
         return true;
@@ -537,6 +635,125 @@ const OnboardingPage: React.FC = () => {
       case 4:
         return (
           <div className="onboarding-step">
+            <h2><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }}><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></svg>Work Experience</h2>
+            <p className="step-description">Add your employment history for complex auto-fills.</p>
+
+            {/* List of added jobs */}
+            <div className="jobs-list">
+              {formData.workExperience.map((job, idx) => (
+                <div key={idx} className="job-card">
+                  <div className="job-header">
+                    <div>
+                      <h4 className="job-title">{job.jobTitle}</h4>
+                      <div className="job-company">{job.company}</div>
+                      <div className="job-meta">
+                        {job.startDate} - {job.isCurrent ? 'Present' : job.endDate} • {job.location}
+                      </div>
+                    </div>
+                    <div className="job-actions">
+                      <button onClick={() => editJob(idx)} className="btn-icon" title="Edit">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                      </button>
+                      <button onClick={() => deleteJob(idx)} className="btn-icon delete" title="Delete">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Add/Edit Form */}
+            <div className="add-job-form">
+              <h3>
+                {editingJobIndex !== null ? 'Edit Position' : 'Add New Position'}
+              </h3>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Company *</label>
+                  <input type="text" name="company" value={jobForm.company} onChange={handleJobChange} placeholder="Google" />
+                </div>
+                <div className="form-group">
+                  <label>Job Title *</label>
+                  <input type="text" name="jobTitle" value={jobForm.jobTitle} onChange={handleJobChange} placeholder="Software Engineer" />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Start Date (YYYY-MM) *</label>
+                  <input type="text" name="startDate" value={jobForm.startDate} onChange={handleJobChange} placeholder="2022-01" />
+                </div>
+                <div className="form-group">
+                  <label>End Date (YYYY-MM)</label>
+                  <input
+                    type="text"
+                    name="endDate"
+                    value={jobForm.endDate}
+                    onChange={handleJobChange}
+                    placeholder="2023-05"
+                    disabled={jobForm.isCurrent}
+                    style={jobForm.isCurrent ? { opacity: 0.5, background: '#eee' } : {}}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group checkbox-group">
+                <label className="checkbox-label">
+                  <input type="checkbox" name="isCurrent" checked={jobForm.isCurrent} onChange={handleJobChange} />
+                  <span>I currently work here</span>
+                </label>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Location</label>
+                  <input type="text" name="location" value={jobForm.location} onChange={handleJobChange} placeholder="New York, NY" />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Description (Responsibilities)</label>
+                <textarea
+                  name="description"
+                  value={jobForm.description}
+                  onChange={handleJobChange}
+                  rows={4}
+                  placeholder="Describe your key responsibilities and achievements..."
+                />
+              </div>
+
+              <div className="add-job-actions">
+                <button
+                  type="button"
+                  onClick={saveJob}
+                  disabled={!jobForm.company || !jobForm.jobTitle}
+                  className="btn-save-job"
+                >
+                  {editingJobIndex !== null ? 'Update Position' : 'Add Position'}
+                </button>
+                {editingJobIndex !== null && (
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    className="btn-cancel-job"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <p className="helper-text">
+              Note: You can always add more experience later in Settings.
+            </p>
+          </div>
+        );
+
+      case 5:
+        return (
+          <div className="onboarding-step">
             <h2><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }}><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></svg>Job Preferences</h2>
             <p className="step-description">Tell us what you're looking for in your next role.</p>
 
@@ -652,7 +869,7 @@ const OnboardingPage: React.FC = () => {
           </div>
         );
 
-      case 5:
+      case 6:
         return (
           <div className="onboarding-step">
             <h2><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>Optional Information</h2>
